@@ -1,0 +1,39 @@
+{
+  "name": "codemung",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A cozy desktop companion for Claude and Codex.",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hyunmin99/codemung.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Hyunmin99/codemung/issues"
+  },
+  "homepage": "https://github.com/Hyunmin99/codemung#readme",
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.4.0",
+    "electron": "^35.2.0",
+    "electron-vite": "^3.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.0"
+  }
+}
