@@ -13,6 +13,7 @@ type LavaStyle = CSSProperties &
     | '--lava-opacity'
     | '--lava-saturation'
     | '--lava-secondary-scale'
+    | '--lava-spread'
     | '--lava-travel-x',
     number | string
   >
@@ -52,6 +53,7 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
     '--lava-opacity': 0.72 + brightness * 0.26,
     '--lava-saturation': `${88 + brightness * 32}%`,
     '--lava-secondary-scale': 0.72 + density * 0.34,
+    '--lava-spread': `${10 + turbulence * 8}px`,
     '--lava-travel-x': `${6 + turbulence * 15}px`,
   }
 
@@ -97,16 +99,16 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
       </defs>
 
       <g className="lava-motion__field" filter="url(#lava-metaball)" aria-hidden="true">
-        <ellipse className="lava-motion__blob lava-motion__blob--one" cx="100" cy="242" rx="36" ry="32" />
-        <ellipse className="lava-motion__blob lava-motion__blob--two" cx="142" cy="193" rx="29" ry="32" />
-        <circle className="lava-motion__blob lava-motion__blob--three" cx="101" cy="128" r="25" />
-        <ellipse className="lava-motion__blob lava-motion__blob--four" cx="148" cy="73" rx="22" ry="24" />
-        <circle className="lava-motion__blob lava-motion__blob--five" cx="91" cy="35" r="16" />
+        <ellipse className="lava-motion__blob lava-motion__blob--one" cx="112" cy="174" rx="41" ry="37" />
+        <ellipse className="lava-motion__blob lava-motion__blob--two" cx="146" cy="158" rx="33" ry="36" />
+        <circle className="lava-motion__blob lava-motion__blob--three" cx="92" cy="148" r="29" />
+        <ellipse className="lava-motion__blob lava-motion__blob--four" cx="144" cy="119" rx="25" ry="28" />
+        <circle className="lava-motion__blob lava-motion__blob--five" cx="103" cy="110" r="19" />
       </g>
 
       <g className="lava-motion__sheen" aria-hidden="true">
-        <ellipse cx="92" cy="220" rx="13" ry="22" />
-        <ellipse cx="137" cy="174" rx="9" ry="15" />
+        <ellipse cx="103" cy="166" rx="15" ry="23" />
+        <ellipse cx="140" cy="148" rx="10" ry="16" />
       </g>
     </svg>
   )
