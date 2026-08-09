@@ -9,57 +9,139 @@
   contain: layout paint style;
 }
 
+/*
+  고채도 유지. 실제 불·용암은 저채도가 아니다 — 채도를 깎으면 불이 아니게 된다.
+  001의 "생물발광" 인상은 채도가 아니라 거동(제자리 호흡·방향성 없음·팽팽한 막)이
+  주범이었고, 그건 buoy/pulse/경계 쪽에서 잡았다.
+  대신 겹쳐서 두꺼운 곳은 필터에서 흰쪽으로 뜨겁게 만든다 (흑체복사).
+  이 그라데이션은 이제 "식은 가장자리" 색을 맡는다.
+*/
 .lava-motion__stop--warm {
-  stop-color: #ffcf72;
+  stop-color: #ffc94f;
 }
 
 .lava-motion__stop--mid {
-  stop-color: #ff6b45;
+  stop-color: #f4562a;
 }
 
+/* 식어가는 쪽 끝. 명도는 낮게 두되 채도는 높게 — 어두우면서 채도까지
+   낮으면 잿빛으로 탁해진다. 식은 용암은 검붉다. */
 .lava-motion__stop--deep {
-  stop-color: #d73d78;
+  stop-color: #b30f4b;
 }
 
 .lava-motion__field {
   filter: url("#lava-metaball");
 }
 
+/*
+  세 옥타브 레이어.
+    sway  = 느린 가로 대류 (주기 ~2.4D)
+    orbit = 부력 상승·하강 (주기 ~1D)
+    blob  = 크기 (주기 ~0.6D)
+  주기가 서로 나누어떨어지지 않아 겹침 주기가 매우 길고, 느린 층일수록
+  진폭이 큰 배치라 1/f(핑크 노이즈) 리듬에 근사한다.
+  세로 리듬은 orbit이, 가로 배회는 sway가 맡아 서로 신호를 흐리지 않는다.
+*/
+
 .lava-motion__blob {
+  --lava-blob-scale: 1;
   fill: url("#lava-fill");
+  /*
+    방울 하나가 불투명하면 내부 알파가 전부 1로 포화돼서 "몇 겹 겹쳤나"를
+    구분할 수 없다. 반투명으로 두면 겹칠수록 알파가 쌓인다
+    (source-over: 1겹 0.5 → 2겹 0.75 → 3겹 0.875).
+    필터가 이 값을 두께로 읽어 뜨거운 중심을 만든다.
+    몸통 알파는 임계값 단계에서 1로 되돌아오므로 덩어리는 투명해지지 않는다.
+  */
+  fill-opacity: 0.5;
   transform-box: fill-box;
   transform-origin: center;
-  will-change: transform;
 }
 
-.lava-motion__blob--one {
-  animation: lava-rise-one var(--lava-duration, 22s) ease-in-out infinite alternate;
+/* 보조 방울은 기본 크기만 줄이고 pulse keyframe은 공유한다. */
+.lava-motion__blob--four,
+.lava-motion__blob--five {
+  --lava-blob-scale: var(--lava-secondary-scale, 0.9);
 }
 
-.lava-motion__blob--two {
-  animation: lava-rise-two calc(var(--lava-duration, 22s) * 0.82) ease-in-out infinite alternate;
+.lava-motion__sway--one {
+  animation: lava-sway-a calc(var(--lava-duration, 22s) * 2.31) ease-in-out infinite;
+  animation-delay: -9.3s;
+}
+
+.lava-motion__sway--two {
+  animation: lava-sway-b calc(var(--lava-duration, 22s) * 2.67) ease-in-out infinite;
+  animation-delay: -21.7s;
+}
+
+.lava-motion__sway--three {
+  animation: lava-sway-a calc(var(--lava-duration, 22s) * 2.09) ease-in-out infinite reverse;
+  animation-delay: -15.4s;
+}
+
+.lava-motion__sway--four {
+  animation: lava-sway-b calc(var(--lava-duration, 22s) * 2.43) ease-in-out infinite reverse;
+  animation-delay: -4.2s;
+}
+
+.lava-motion__sway--five {
+  animation: lava-sway-a calc(var(--lava-duration, 22s) * 2.87) ease-in-out infinite;
+  animation-delay: -27.5s;
+}
+
+.lava-motion__orbit--one {
+  animation: lava-buoy-a var(--lava-duration, 22s) linear infinite;
+  animation-delay: -3.1s;
+}
+
+.lava-motion__orbit--two {
+  animation: lava-buoy-b calc(var(--lava-duration, 22s) * 0.83) linear infinite;
   animation-delay: -7.4s;
 }
 
-.lava-motion__blob--three {
-  animation: lava-drift-three calc(var(--lava-duration, 22s) * 1.16) ease-in-out infinite alternate;
+.lava-motion__orbit--three {
+  animation: lava-buoy-c calc(var(--lava-duration, 22s) * 1.19) linear infinite;
   animation-delay: -13.2s;
 }
 
-.lava-motion__blob--four {
-  transform: scale(var(--lava-secondary-scale, 0.9));
-  animation: lava-sink-four calc(var(--lava-duration, 22s) * 0.94) ease-in-out infinite alternate;
+.lava-motion__orbit--four {
+  animation: lava-buoy-b calc(var(--lava-duration, 22s) * 0.94) linear infinite;
   animation-delay: -4.8s;
 }
 
-.lava-motion__blob--five {
-  transform: scale(var(--lava-secondary-scale, 0.9));
-  animation: lava-drift-five calc(var(--lava-duration, 22s) * 1.28) ease-in-out infinite alternate;
+.lava-motion__orbit--five {
+  animation: lava-buoy-c calc(var(--lava-duration, 22s) * 1.31) linear infinite;
   animation-delay: -16s;
 }
 
+.lava-motion__blob--one {
+  animation: lava-pulse-a calc(var(--lava-duration, 22s) * 0.617) ease-in-out infinite;
+  animation-delay: -2.3s;
+}
+
+.lava-motion__blob--two {
+  animation: lava-pulse-b calc(var(--lava-duration, 22s) * 0.529) ease-in-out infinite;
+  animation-delay: -5.9s;
+}
+
+.lava-motion__blob--three {
+  animation: lava-pulse-a calc(var(--lava-duration, 22s) * 0.743) ease-in-out infinite;
+  animation-delay: -9.7s;
+}
+
+.lava-motion__blob--four {
+  animation: lava-pulse-b calc(var(--lava-duration, 22s) * 0.681) ease-in-out infinite;
+  animation-delay: -1.4s;
+}
+
+.lava-motion__blob--five {
+  animation: lava-pulse-a calc(var(--lava-duration, 22s) * 0.577) ease-in-out infinite;
+  animation-delay: -11.2s;
+}
+
 .lava-motion__sheen {
-  fill: rgba(255, 247, 215, 0.16);
+  fill: rgba(255, 247, 215, 0.12);
   filter: blur(3px);
   pointer-events: none;
   animation: lava-sheen calc(var(--lava-duration, 22s) * 0.9) ease-in-out infinite alternate;
@@ -114,79 +196,193 @@
   opacity: 0.84;
 }
 
-@keyframes lava-rise-one {
-  0% {
-    transform: translate3d(4px, -4px, 0) scale(1.02, 0.98);
-  }
-  52% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -0.45), calc(var(--lava-spread, 24px) * 0.7), 0) scale(1.08, 0.94);
-  }
-  100% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -1.05), calc(var(--lava-spread, 24px) * 1.2), 0) scale(0.94, 1.08);
-  }
-}
+/*
+  부력 사이클. 용암 램프의 실제 물리를 따른다.
+    하단 정체(가열) → 가속 → 등속 상승(종단속도) → 상단 감속
+    → 상단 정체(냉각) → 등속 하강
+  상승과 하강 구간 길이를 다르게 둔다. 전이 구간은 linear —
+  ease-in-out을 전 구간에 쓰면 사인파가 되고, 사인파는 조화진동자,
+  즉 호흡·맥박 같은 생물 리듬으로 읽힌다. 부력은 등속이다.
+*/
 
-@keyframes lava-rise-two {
+@keyframes lava-buoy-a {
   0% {
-    transform: translate3d(-6px, -1px, 0) scale(0.98, 1.04);
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: linear;
   }
-  55% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * 0.55), calc(var(--lava-spread, 24px) * 0.35), 0) scale(1.08, 0.94);
+  20% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.06), calc(var(--lava-spread, 24px) * -0.04), 0);
+    animation-timing-function: ease-in;
   }
-  100% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * 1.15), calc(var(--lava-spread, 24px) * 0.78), 0) scale(0.92, 1.1);
-  }
-}
-
-@keyframes lava-drift-three {
-  0% {
-    transform: translate3d(7px, 1px, 0) scale(1.04, 0.96);
+  29% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.18), calc(var(--lava-spread, 24px) * -0.28), 0);
+    animation-timing-function: linear;
   }
   48% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -0.55), calc(var(--lava-travel-x, 10px) * -0.45), 0) scale(0.94, 1.08);
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.42), calc(var(--lava-spread, 24px) * -0.92), 0);
+    animation-timing-function: ease-out;
+  }
+  63% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.05), calc(var(--lava-spread, 24px) * -0.95), 0);
+    animation-timing-function: ease-in;
+  }
+  72% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.28), calc(var(--lava-spread, 24px) * -0.78), 0);
+    animation-timing-function: linear;
   }
   100% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -1.2), calc(var(--lava-spread, 24px) * 0.18), 0) scale(1.08, 0.94);
+    transform: translate3d(0, 0, 0);
   }
 }
 
-@keyframes lava-sink-four {
+@keyframes lava-buoy-b {
   0% {
-    transform: translate3d(-5px, 6px, 0)
-      scale(calc(var(--lava-secondary-scale, 0.9) * 0.96), calc(var(--lava-secondary-scale, 0.9) * 1.04));
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: linear;
   }
-  100% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * 1.05), calc(var(--lava-spread, 24px) * -1.15), 0)
-      scale(calc(var(--lava-secondary-scale, 0.9) * 1.08), calc(var(--lava-secondary-scale, 0.9) * 0.92));
+  26% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.05), calc(var(--lava-spread, 24px) * 0.03), 0);
+    animation-timing-function: ease-in;
   }
-}
-
-@keyframes lava-drift-five {
-  0% {
-    transform: translate3d(4px, 7px, 0)
-      scale(var(--lava-secondary-scale, 0.9));
+  33% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.14), calc(var(--lava-spread, 24px) * -0.24), 0);
+    animation-timing-function: linear;
   }
   50% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -0.35), calc(var(--lava-spread, 24px) * -0.65), 0)
-      scale(calc(var(--lava-secondary-scale, 0.9) * 1.12));
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.36), calc(var(--lava-spread, 24px) * -0.88), 0);
+    animation-timing-function: ease-out;
+  }
+  61% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.08), calc(var(--lava-spread, 24px) * -0.93), 0);
+    animation-timing-function: ease-in;
+  }
+  69% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.26), calc(var(--lava-spread, 24px) * -0.74), 0);
+    animation-timing-function: linear;
   }
   100% {
-    transform: translate3d(calc(var(--lava-spread, 24px) * -0.82), calc(var(--lava-spread, 24px) * -1.25), 0)
-      scale(calc(var(--lava-secondary-scale, 0.9) * 0.9));
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes lava-buoy-c {
+  0% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: linear;
+  }
+  15% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.08), calc(var(--lava-spread, 24px) * -0.05), 0);
+    animation-timing-function: ease-in;
+  }
+  24% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.26), calc(var(--lava-spread, 24px) * -0.32), 0);
+    animation-timing-function: linear;
+  }
+  44% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.55), calc(var(--lava-spread, 24px) * -0.86), 0);
+    animation-timing-function: ease-out;
+  }
+  58% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.12), calc(var(--lava-spread, 24px) * -0.98), 0);
+    animation-timing-function: ease-in;
+  }
+  67% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.18), calc(var(--lava-spread, 24px) * -0.8), 0);
+    animation-timing-function: linear;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/*
+  느린 가로 대류. 부력 리듬을 흐리지 않도록 세로 성분은 작게 둔다.
+  주기가 가장 길고 진폭도 가장 크다 — 1/f에서 저주파일수록 큰 진폭.
+*/
+
+@keyframes lava-sway-a {
+  0%,
+  100% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.62), calc(var(--lava-spread, 24px) * 0.08), 0);
+  }
+  38% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.34), calc(var(--lava-spread, 24px) * -0.18), 0);
+  }
+  71% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.66), calc(var(--lava-spread, 24px) * 0.14), 0);
+  }
+}
+
+@keyframes lava-sway-b {
+  0%,
+  100% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * 0.58), calc(var(--lava-spread, 24px) * -0.12), 0);
+  }
+  44% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.28), calc(var(--lava-spread, 24px) * 0.16), 0);
+  }
+  76% {
+    transform: translate3d(calc(var(--lava-travel-x, 10px) * -0.64), calc(var(--lava-spread, 24px) * -0.06), 0);
+  }
+}
+
+/*
+  pulse — 균등 scale. 진폭은 이전(±22%)에서 낮췄다.
+  느린 크기 리듬 자체는 남긴다: 주기가 이완 호흡 대역이라
+  soft fascination 관점에서 자산이다. 문제였던 건 진폭과 단단한 경계였다.
+*/
+
+@keyframes lava-pulse-a {
+  0%,
+  100% {
+    transform: scale(
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-lo, 1) * 1.01),
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-lo, 1) * 0.99)
+    );
+  }
+  44% {
+    transform: scale(
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 1.02),
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 0.98)
+    );
+  }
+}
+
+@keyframes lava-pulse-b {
+  0%,
+  100% {
+    transform: scale(calc(var(--lava-blob-scale, 1) * var(--lava-pulse-lo, 1)));
+  }
+  26% {
+    transform: scale(
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 0.98),
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 1.02)
+    );
+  }
+  53% {
+    transform: scale(calc(var(--lava-blob-scale, 1) * var(--lava-pulse-mid, 1)));
+  }
+  78% {
+    transform: scale(
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 1.03),
+      calc(var(--lava-blob-scale, 1) * var(--lava-pulse-hi, 1) * 0.97)
+    );
   }
 }
 
 @keyframes lava-sheen {
   from {
     transform: translate3d(-6px, 5px, 0);
-    opacity: 0.45;
+    opacity: 0.4;
   }
   to {
     transform: translate3d(10px, -9px, 0);
-    opacity: 0.75;
+    opacity: 0.66;
   }
 }
 
+.lava-motion--reduced .lava-motion__sway,
+.lava-motion--reduced .lava-motion__orbit,
 .lava-motion--reduced .lava-motion__blob,
 .lava-motion--reduced .lava-motion__sheen {
   animation-play-state: paused;
@@ -197,6 +393,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lava-motion__sway,
+  .lava-motion__orbit,
   .lava-motion__blob,
   .lava-motion__sheen {
     animation-play-state: paused !important;
