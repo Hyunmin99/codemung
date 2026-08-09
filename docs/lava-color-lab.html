@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>라바 색 비교 · 조정</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 24px 64px;
+    background: #131316; color: #e8e8ea;
+    font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { margin: 0 0 34px; color: #8b8b93; font-size: 13px; }
+  h2 { margin: 44px 0 4px; font-size: 14px; font-weight: 600; }
+  h2 + .sub { margin-bottom: 20px; }
+
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .card {
+    flex: 1 1 240px; min-width: 210px;
+    background: #0d0d0f; border: 1px solid #26262b; border-radius: 14px;
+    padding: 16px 16px 18px; display: flex; flex-direction: column; align-items: center;
+  }
+  .card.on { border-color: #f0a04b; }
+  .stage { width: 100%; aspect-ratio: 1/1; display: grid; place-items: center; }
+  .stage svg { width: 82%; height: 82%; }
+  .tag { margin: 12px 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: #f0a04b; }
+  .name { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; text-align: center; }
+  .sw { display: flex; gap: 6px; align-items: center; font-size: 11.5px; color: #8b8b93; margin-top: 2px; }
+  .chip { width: 13px; height: 13px; border-radius: 4px; border: 1px solid rgba(255,255,255,.18); }
+
+  .lab { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start;
+         background: #0d0d0f; border: 1px solid #26262b; border-radius: 16px; padding: 22px; }
+  .labStage { flex: 0 0 300px; aspect-ratio: 1/1; display: grid; place-items: center; }
+  .labStage svg { width: 90%; height: 90%; }
+  .ctrls { flex: 1 1 320px; min-width: 280px; display: grid; gap: 14px; }
+  .ctrl { display: grid; grid-template-columns: 116px 1fr auto; gap: 10px; align-items: center; }
+  .ctrl label { font-size: 12.5px; color: #b6b6bd; }
+  .ctrl input[type=color] { width: 100%; height: 30px; padding: 0; border: 1px solid #33333a; border-radius: 7px; background: #16161a; cursor: pointer; }
+  .ctrl input[type=range] { width: 100%; accent-color: #f0a04b; }
+  .val { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: #8b8b93; min-width: 62px; text-align: right; }
+  .out { margin-top: 4px; background: #0a0a0c; border: 1px solid #26262b; border-radius: 10px;
+         padding: 12px 14px; font: 11.5px/1.75 ui-monospace, SFMono-Regular, Menlo, monospace;
+         color: #c8c8d0; white-space: pre; overflow-x: auto; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  button { font: inherit; font-size: 12.5px; padding: 7px 12px; border-radius: 8px;
+           border: 1px solid #33333a; background: #1a1a1f; color: #e8e8ea; cursor: pointer; }
+  button:hover { border-color: #4a4a54; }
+  button.primary { border-color: #f0a04b; color: #f0a04b; }
+  footer { margin-top: 40px; color: #6e6e76; font-size: 12px; }
+
+  /* ---- working 상태 파라미터 (005 구조 고정) ---- */
+  .lava { display:block; background:transparent; opacity:.9176; filter:saturate(113.36%);
+    --dur:15.357s; --spread:20.12px; --tx:11.38px; --sec:.958; --lo:.8867; --mid:.9757; --hi:1.1456; }
+  .blob { fill-opacity:.5; transform-box:fill-box; transform-origin:center; --bs:1; }
+  .blob--four,.blob--five { --bs: var(--sec); }
+  .sway--one{animation:sway-a calc(var(--dur)*2.31) ease-in-out infinite;animation-delay:-9.3s}
+  .sway--two{animation:sway-b calc(var(--dur)*2.67) ease-in-out infinite;animation-delay:-21.7s}
+  .sway--three{animation:sway-a calc(var(--dur)*2.09) ease-in-out infinite reverse;animation-delay:-15.4s}
+  .sway--four{animation:sway-b calc(var(--dur)*2.43) ease-in-out infinite reverse;animation-delay:-4.2s}
+  .sway--five{animation:sway-a calc(var(--dur)*2.87) ease-in-out infinite;animation-delay:-27.5s}
+  .orbit--one{animation:buoy-a var(--dur) linear infinite;animation-delay:-3.1s}
+  .orbit--two{animation:buoy-b calc(var(--dur)*.83) linear infinite;animation-delay:-7.4s}
+  .orbit--three{animation:buoy-c calc(var(--dur)*1.19) linear infinite;animation-delay:-13.2s}
+  .orbit--four{animation:buoy-b calc(var(--dur)*.94) linear infinite;animation-delay:-4.8s}
+  .orbit--five{animation:buoy-c calc(var(--dur)*1.31) linear infinite;animation-delay:-16s}
+  .blob--one{animation:pulse-a calc(var(--dur)*.617) ease-in-out infinite;animation-delay:-2.3s}
+  .blob--two{animation:pulse-b calc(var(--dur)*.529) ease-in-out infinite;animation-delay:-5.9s}
+  .blob--three{animation:pulse-a calc(var(--dur)*.743) ease-in-out infinite;animation-delay:-9.7s}
+  .blob--four{animation:pulse-b calc(var(--dur)*.681) ease-in-out infinite;animation-delay:-1.4s}
+  .blob--five{animation:pulse-a calc(var(--dur)*.577) ease-in-out infinite;animation-delay:-11.2s}
+  @keyframes buoy-a{
+    0%{transform:translate3d(0,0,0);animation-timing-function:linear}
+    20%{transform:translate3d(calc(var(--tx)*.06),calc(var(--spread)*-.04),0);animation-timing-function:ease-in}
+    29%{transform:translate3d(calc(var(--tx)*.18),calc(var(--spread)*-.28),0);animation-timing-function:linear}
+    48%{transform:translate3d(calc(var(--tx)*.42),calc(var(--spread)*-.92),0);animation-timing-function:ease-out}
+    63%{transform:translate3d(calc(var(--tx)*-.05),calc(var(--spread)*-.95),0);animation-timing-function:ease-in}
+    72%{transform:translate3d(calc(var(--tx)*-.28),calc(var(--spread)*-.78),0);animation-timing-function:linear}
+    100%{transform:translate3d(0,0,0)} }
+  @keyframes buoy-b{
+    0%{transform:translate3d(0,0,0);animation-timing-function:linear}
+    26%{transform:translate3d(calc(var(--tx)*-.05),calc(var(--spread)*.03),0);animation-timing-function:ease-in}
+    33%{transform:translate3d(calc(var(--tx)*-.14),calc(var(--spread)*-.24),0);animation-timing-function:linear}
+    50%{transform:translate3d(calc(var(--tx)*-.36),calc(var(--spread)*-.88),0);animation-timing-function:ease-out}
+    61%{transform:translate3d(calc(var(--tx)*.08),calc(var(--spread)*-.93),0);animation-timing-function:ease-in}
+    69%{transform:translate3d(calc(var(--tx)*.26),calc(var(--spread)*-.74),0);animation-timing-function:linear}
+    100%{transform:translate3d(0,0,0)} }
+  @keyframes buoy-c{
+    0%{transform:translate3d(0,0,0);animation-timing-function:linear}
+    15%{transform:translate3d(calc(var(--tx)*.08),calc(var(--spread)*-.05),0);animation-timing-function:ease-in}
+    24%{transform:translate3d(calc(var(--tx)*.26),calc(var(--spread)*-.32),0);animation-timing-function:linear}
+    44%{transform:translate3d(calc(var(--tx)*.55),calc(var(--spread)*-.86),0);animation-timing-function:ease-out}
+    58%{transform:translate3d(calc(var(--tx)*.12),calc(var(--spread)*-.98),0);animation-timing-function:ease-in}
+    67%{transform:translate3d(calc(var(--tx)*-.18),calc(var(--spread)*-.8),0);animation-timing-function:linear}
+    100%{transform:translate3d(0,0,0)} }
+  @keyframes sway-a{
+    0%,100%{transform:translate3d(calc(var(--tx)*-.62),calc(var(--spread)*.08),0)}
+    38%{transform:translate3d(calc(var(--tx)*.34),calc(var(--spread)*-.18),0)}
+    71%{transform:translate3d(calc(var(--tx)*.66),calc(var(--spread)*.14),0)} }
+  @keyframes sway-b{
+    0%,100%{transform:translate3d(calc(var(--tx)*.58),calc(var(--spread)*-.12),0)}
+    44%{transform:translate3d(calc(var(--tx)*-.28),calc(var(--spread)*.16),0)}
+    76%{transform:translate3d(calc(var(--tx)*-.64),calc(var(--spread)*-.06),0)} }
+  @keyframes pulse-a{
+    0%,100%{transform:scale(calc(var(--bs)*var(--lo)*1.01),calc(var(--bs)*var(--lo)*.99))}
+    44%{transform:scale(calc(var(--bs)*var(--hi)*1.02),calc(var(--bs)*var(--hi)*.98))} }
+  @keyframes pulse-b{
+    0%,100%{transform:scale(calc(var(--bs)*var(--lo)))}
+    26%{transform:scale(calc(var(--bs)*var(--hi)*.98),calc(var(--bs)*var(--hi)*1.02))}
+    53%{transform:scale(calc(var(--bs)*var(--mid)))}
+    78%{transform:scale(calc(var(--bs)*var(--hi)*1.03),calc(var(--bs)*var(--hi)*.97))} }
+  @media (prefers-reduced-motion: reduce){ .sway,.orbit,.blob{animation-play-state:paused!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>라바 색 비교 · 조정</h1>
+<p class="sub">구조는 005 그대로 고정(σ 7.94 · 몸통 기울기 9 · 그레인 없음). 색만 다르다.</p>
+
+<div class="row" id="presets"></div>
+
+<h2>직접 조정</h2>
+<p class="sub">값을 바꾸면 아래 코드가 같이 갱신된다. 마음에 드는 조합이 나오면 그 값을 알려주면 된다.</p>
+
+<div class="lab">
+  <div class="labStage" id="labStage"></div>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="cRim">가장자리 색</label>
+      <input type="color" id="cRim" value="#b61000" />
+      <span class="val" id="vRim">#b61000</span>
+    </div>
+    <div class="ctrl">
+      <label for="cRimO">가장자리 농도</label>
+      <input type="range" id="cRimO" min="0" max="1" step="0.01" value="0.394" />
+      <span class="val" id="vRimO">0.39</span>
+    </div>
+    <div class="ctrl">
+      <label for="cCore">중심 색</label>
+      <input type="color" id="cCore" value="#fff04d" />
+      <span class="val" id="vCore">#fff04d</span>
+    </div>
+    <div class="ctrl">
+      <label for="cCoreO">중심 농도</label>
+      <input type="range" id="cCoreO" min="0" max="1" step="0.01" value="0.758" />
+      <span class="val" id="vCoreO">0.76</span>
+    </div>
+    <div class="ctrl">
+      <label for="cWarm">그라데이션 warm</label>
+      <input type="color" id="cWarm" value="#ffc94f" />
+      <span class="val" id="vWarm">#ffc94f</span>
+    </div>
+    <div class="ctrl">
+      <label for="cMid">그라데이션 mid</label>
+      <input type="color" id="cMid" value="#f4562a" />
+      <span class="val" id="vMid">#f4562a</span>
+    </div>
+    <div class="ctrl">
+      <label for="cDeep">그라데이션 deep</label>
+      <input type="color" id="cDeep" value="#b30f4b" />
+      <span class="val" id="vDeep">#b30f4b</span>
+    </div>
+
+    <div class="btns" id="loadBtns"></div>
+    <div class="out" id="out"></div>
+    <div class="btns"><button id="copy">코드 복사</button></div>
+  </div>
+</div>
+
+<footer>
+  가장자리는 <code>multiply</code>로 곱해지는 색이라 밝을수록 덜 어두워진다.
+  더 어둡게 하려면 색보다 <b>농도</b>를 올리는 편이 채도를 안 잃는다.
+</footer>
+
+</div>
+
+<script>
+const BLOBS = [
+  ['one',   'ellipse', {cx:112, cy:174, rx:41, ry:37}],
+  ['two',   'ellipse', {cx:146, cy:158, rx:33, ry:36}],
+  ['three', 'circle',  {cx:92,  cy:148, r:29}],
+  ['four',  'ellipse', {cx:144, cy:119, rx:25, ry:28}],
+  ['five',  'circle',  {cx:105, cy:115, r:24}]
+];
+
+const PRESETS = [
+  { id:'p005', tag:'005', name:'원본',
+    rim:'#4a0e18', rimO:0.394, core:'#fff04d', coreO:0.758,
+    warm:'#ffc94f', mid:'#f4562a', deep:'#97244f' },
+  { id:'p007', tag:'007 색안', name:'채도 한 단계 위',
+    rim:'#6d0f06', rimO:0.394, core:'#fff04d', coreO:0.758,
+    warm:'#ffc94f', mid:'#f4562a', deep:'#9c1345' },
+  { id:'pnow', tag:'현재', name:'B61000 / B30F4B',
+    rim:'#b61000', rimO:0.394, core:'#fff04d', coreO:0.758,
+    warm:'#ffc94f', mid:'#f4562a', deep:'#b30f4b' }
+];
+
+function svgFor(uid, p) {
+  const shapes = BLOBS.map(([n, tag, a]) => {
+    const attrs = Object.entries(a).map(([k,v]) => `${k}="${v}"`).join(' ');
+    return `<g class="sway sway--${n}"><g class="orbit orbit--${n}">` +
+           `<${tag} class="blob blob--${n}" fill="url(#g-${uid})" ${attrs}/></g></g>`;
+  }).join('');
+  return `
+  <svg class="lava" viewBox="0 0 240 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="라바 미리보기">
+    <defs>
+      <linearGradient id="g-${uid}" x1=".18" y1=".08" x2=".82" y2=".94">
+        <stop class="s-warm" offset="0"    stop-color="${p.warm}"/>
+        <stop class="s-mid"  offset=".54"  stop-color="${p.mid}"/>
+        <stop class="s-deep" offset="1"    stop-color="${p.deep}"/>
+      </linearGradient>
+      <filter id="f-${uid}" x="-60%" y="-50%" width="220%" height="200%" color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="7.94" result="soft"/>
+        <feColorMatrix in="soft" type="matrix" result="body"
+          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 9 -2.2"/>
+        <feColorMatrix in="soft" type="matrix" result="rimM"
+          values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 1.78"/>
+        <feFlood class="fl-rim" flood-color="${p.rim}" flood-opacity="${p.rimO}" result="rimC"/>
+        <feComposite in="rimC" in2="rimM" operator="in" result="rimG"/>
+        <feComposite in="rimG" in2="body" operator="in" result="rimK"/>
+        <feBlend in="body" in2="rimK" mode="multiply" result="cooled"/>
+        <feColorMatrix in="soft" type="matrix" result="coreM"
+          values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 3.2 -1.45"/>
+        <feFlood class="fl-core" flood-color="${p.core}" flood-opacity="${p.coreO}" result="coreC"/>
+        <feComposite in="coreC" in2="coreM" operator="in" result="coreG"/>
+        <feComposite in="coreG" in2="cooled" operator="in" result="coreK"/>
+        <feBlend in="cooled" in2="coreK" mode="screen"/>
+      </filter>
+    </defs>
+    <g filter="url(#f-${uid})">${shapes}</g>
+  </svg>`;
+}
+
+// ---- 프리셋 카드 ----
+document.getElementById('presets').innerHTML = PRESETS.map(p => `
+  <div class="card">
+    <div class="stage">${svgFor(p.id, p)}</div>
+    <div class="tag">${p.tag}</div>
+    <div class="name">${p.name}</div>
+    <div class="sw"><span class="chip" style="background:${p.rim}"></span>가장자리 ${p.rim}</div>
+    <div class="sw"><span class="chip" style="background:${p.deep}"></span>deep ${p.deep}</div>
+  </div>`).join('');
+
+// ---- 조정용 ----
+const state = { ...PRESETS[2] };
+document.getElementById('labStage').innerHTML = svgFor('lab', state);
+const lab = document.getElementById('labStage');
+
+const FIELDS = [
+  ['rim','cRim','vRim'], ['core','cCore','vCore'],
+  ['warm','cWarm','vWarm'], ['mid','cMid','vMid'], ['deep','cDeep','vDeep']
+];
+const RANGES = [['rimO','cRimO','vRimO'], ['coreO','cCoreO','vCoreO']];
+
+function apply() {
+  lab.querySelector('.fl-rim').setAttribute('flood-color', state.rim);
+  lab.querySelector('.fl-rim').setAttribute('flood-opacity', state.rimO);
+  lab.querySelector('.fl-core').setAttribute('flood-color', state.core);
+  lab.querySelector('.fl-core').setAttribute('flood-opacity', state.coreO);
+  lab.querySelector('.s-warm').setAttribute('stop-color', state.warm);
+  lab.querySelector('.s-mid').setAttribute('stop-color', state.mid);
+  lab.querySelector('.s-deep').setAttribute('stop-color', state.deep);
+
+  FIELDS.forEach(([k, i, v]) => {
+    document.getElementById(i).value = state[k];
+    document.getElementById(v).textContent = state[k];
+  });
+  RANGES.forEach(([k, i, v]) => {
+    document.getElementById(i).value = state[k];
+    document.getElementById(v).textContent = Number(state[k]).toFixed(2);
+  });
+
+  document.getElementById('out').textContent =
+`LavaMotion.tsx
+  가장자리  floodColor="${state.rim}"  floodOpacity ${Number(state.rimO).toFixed(3)}
+  중심      floodColor="${state.core}"  floodOpacity ${Number(state.coreO).toFixed(3)}
+
+lava.css
+  --stop--warm  ${state.warm}
+  --stop--mid   ${state.mid}
+  --stop--deep  ${state.deep}`;
+}
+
+FIELDS.forEach(([k, i]) => {
+  document.getElementById(i).addEventListener('input', e => { state[k] = e.target.value; apply(); });
+});
+RANGES.forEach(([k, i]) => {
+  document.getElementById(i).addEventListener('input', e => { state[k] = e.target.value; apply(); });
+});
+
+document.getElementById('loadBtns').innerHTML =
+  PRESETS.map((p, n) => `<button data-n="${n}">${p.tag} 불러오기</button>`).join('') ;
+document.getElementById('loadBtns').addEventListener('click', e => {
+  const n = e.target.dataset.n;
+  if (n === undefined) return;
+  Object.assign(state, PRESETS[n]);
+  apply();
+});
+
+document.getElementById('copy').addEventListener('click', async e => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('out').textContent);
+    e.target.textContent = '복사됨';
+    setTimeout(() => { e.target.textContent = '코드 복사'; }, 1400);
+  } catch { e.target.textContent = '복사 실패'; }
+});
+
+apply();
+</script>
+</body>
+</html>
