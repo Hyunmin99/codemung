@@ -31,7 +31,10 @@ export interface SessionStore {
 
 const DEFAULT_COMPLETED_HOLD_MS = 4000
 
-// A higher number wins when several sessions disagree.
+// A higher number wins when several sessions disagree. This table is duplicated in
+// src/renderer/src/App.tsx and the two copies must stay in sync: the renderer cannot reuse
+// snapshot.representativeState because it recomputes the priority over the visible agents
+// only, and the store knows nothing about renderer-side visibility settings.
 const STATE_PRIORITY: Record<AgentState, number> = {
   idle: 0,
   working: 1,
@@ -132,6 +135,19 @@ export function createSessionStore(options: SessionStoreOptions): SessionStore {
     const key = `${event.provider}:${event.sessionId}`
     const existing = sessions.get(key)
     const state = EVENT_STATES[event.kind]
+
+    // Hook processes race, so an event older than what the entry already reflects carries no
+    // news and must never pull the state, the project, or a pending hold backwards.
+    if (existing && event.occurredAt < existing.updatedAt) return
+
+    // SessionStart fires again mid-session after Claude auto-compaction and races
+    // UserPromptSubmit on the first Codex prompt, so it may only create, never reset.
+    if (existing && event.kind === 'session_started') {
+      existing.project = event.project ?? existing.project
+      existing.updatedAt = event.occurredAt
+      publish()
+      return
+    }
 
     existing?.cancelHold?.()
 

@@ -35,6 +35,9 @@ const STATE_LABELS: Record<AgentState, string> = {
   completed: '완료',
   error: '오류'
 }
+// Duplicated from src/main/session-store.ts and the two copies must stay in sync.
+// snapshot.representativeState cannot be used directly because hidden agents must not drive
+// the scene, and the store has no access to the renderer-side visibility settings.
 const STATE_PRIORITY: Record<AgentState, number> = {
   idle: 0,
   working: 1,

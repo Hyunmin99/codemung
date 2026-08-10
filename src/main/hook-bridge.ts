@@ -95,10 +95,11 @@ function readStdin(): Promise<string> {
 
 async function run(): Promise<void> {
   const provider = process.argv[2]
+  // stdin is drained before anything else, including the provider check: exiting while the
+  // parent still has the payload queued makes the parent's own write fail with EPIPE.
+  const body = await readStdin()
 
   if (provider !== 'claude' && provider !== 'codex') return
-
-  const body = await readStdin()
 
   let hookPayload: unknown
 

@@ -103,6 +103,54 @@ test('a new event cancels a pending completed hold', () => {
   harness.store.dispose()
 })
 
+test('a repeated session_started does not reset a session that is already working', () => {
+  const { store } = createHarness()
+
+  store.apply(event({ kind: 'activity', occurredAt: 1000 }))
+  store.apply(event({ kind: 'session_started', occurredAt: 1100 }))
+
+  assert.equal(store.getSnapshot().providers.claude.state, 'working')
+  store.dispose()
+})
+
+test('an out-of-order event regresses neither the state nor the project', () => {
+  const { store } = createHarness()
+
+  store.apply(event({ kind: 'activity', project: 'codemung', occurredAt: 2000 }))
+  store.apply(event({ kind: 'session_started', project: 'portfolio', occurredAt: 1000 }))
+
+  const snapshot = store.getSnapshot()
+
+  assert.equal(snapshot.providers.claude.state, 'working')
+  assert.equal(snapshot.providers.claude.project, 'codemung')
+  store.dispose()
+})
+
+test('an out-of-order event leaves a pending completed hold intact', () => {
+  const harness = createHarness()
+
+  harness.store.apply(event({ kind: 'completed', occurredAt: 2000 }))
+  harness.store.apply(event({ kind: 'activity', occurredAt: 1000 }))
+  harness.runPending()
+
+  assert.equal(harness.scheduled[0].cancelled, false)
+  assert.equal(harness.store.getSnapshot().providers.claude.state, 'idle')
+  harness.store.dispose()
+})
+
+test('a repeated session_started keeps the pending completed hold', () => {
+  const harness = createHarness()
+
+  harness.store.apply(event({ kind: 'completed', occurredAt: 1000 }))
+  harness.store.apply(event({ kind: 'session_started', occurredAt: 1100 }))
+  assert.equal(harness.store.getSnapshot().providers.claude.state, 'completed')
+
+  harness.runPending()
+
+  assert.equal(harness.store.getSnapshot().providers.claude.state, 'idle')
+  harness.store.dispose()
+})
+
 test('ending one session keeps the other active session of the same provider', () => {
   const { store } = createHarness()
 
