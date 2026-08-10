@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
 import { writeFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -22,10 +22,10 @@ function hookPayload(overrides) {
 }
 
 // Runs the bridge exactly the way Claude and Codex run it: argv provider, JSON on stdin.
-function runBridge(provider, payload, environment = {}) {
+function runBridge(provider, payload, environment = {}, scriptPath = bridgePath) {
   return new Promise((resolve) => {
     const startedAt = Date.now()
-    const child = spawn(process.execPath, [bridgePath, provider], {
+    const child = spawn(process.execPath, [scriptPath, provider], {
       env: { ...process.env, ...environment },
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -149,6 +149,31 @@ test('a real invocation posts a filtered event and writes nothing to stdout', as
     assert.equal(requests[0].body.kind, 'completed')
     assert.equal(requests[0].body.provider, 'claude')
     assert.equal(requests[0].body.cwd, '/Users/someone/Projects/codemung')
+  })
+})
+
+test('an invocation through a symlink still posts the event', async () => {
+  await withStubServer(async ({ requests, runtimeFilePath }) => {
+    const linkDirectory = await mkdtemp(join(tmpdir(), 'codemung-bridge-link-'))
+    const linkPath = join(linkDirectory, 'codemung-hook')
+
+    try {
+      await symlink(bridgePath, linkPath)
+
+      const result = await runBridge(
+        'claude',
+        hookPayload({ hook_event_name: 'Stop' }),
+        { CODEMUNG_RUNTIME_FILE: runtimeFilePath },
+        linkPath
+      )
+
+      assert.equal(result.code, 0)
+      assert.equal(result.stdout, '')
+      assert.equal(requests.length, 1)
+      assert.equal(requests[0].body.kind, 'completed')
+    } finally {
+      await rm(linkDirectory, { recursive: true, force: true })
+    }
   })
 })
 

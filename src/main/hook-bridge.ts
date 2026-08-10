@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -136,8 +136,20 @@ async function run(): Promise<void> {
   })
 }
 
-// Importing this module for tests must not execute the script.
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+// Importing this module for tests must not execute the script. argv[1] is resolved through
+// symlinks because Node resolves import.meta.url to the realpath, so a script reached via a
+// symlink (e.g. a stable ~/.local/bin shim, or /tmp on macOS) would otherwise never match.
+const isEntryPoint = (() => {
+  const entry = process.argv[1]
+
+  try {
+    return Boolean(entry) && pathToFileURL(realpathSync(entry)).href === import.meta.url
+  } catch {
+    return false
+  }
+})()
+
+if (isEntryPoint) {
   const watchdog = setTimeout(() => process.exit(0), WATCHDOG_TIMEOUT_MS)
 
   watchdog.unref()
