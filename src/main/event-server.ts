@@ -13,7 +13,7 @@ const MAX_SESSION_ID_LENGTH = 200
 const MAX_CWD_LENGTH = 4096
 const BEARER_PREFIX = 'Bearer '
 
-const PROVIDERS = ['claude', 'codex'] as const
+export const PROVIDERS = ['claude', 'codex'] as const
 const EVENT_KINDS = [
   'session_started',
   'activity',

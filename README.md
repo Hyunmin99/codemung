@@ -2,7 +2,7 @@
 
 > A cozy desktop companion for Claude Code and Codex.
 
-CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. The current prototype renders a state-aware lava animation in a transparent, draggable Electron window, with planned support for live Claude Code and Codex events.
+CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. The current prototype renders a state-aware lava animation in a transparent, draggable Electron window, connected to live Claude Code and Codex events through a manual hook bridge.
 
 ## Project status
 
@@ -18,8 +18,10 @@ The current prototype includes:
 - A security-conscious Electron setup with context isolation, sandboxing, and Node.js disabled in the renderer
 
 - A token-authenticated loopback event server that accepts provider events on `127.0.0.1`
+- A multi-session state store that keeps each provider independent and derives the scene state
+- A shared hook bridge that turns Claude Code and Codex hook payloads into provider events
 
-Session aggregation, the provider hook bridge, the hook installer, and live state updates are still planned. Received events are not yet reflected on screen, so the prototype continues to use hard-coded agent states to demonstrate the motion system.
+The hook installer is still planned, so hooks are connected by hand — see `docs/hook-setup.md`. Session recovery after a restart is not implemented yet.
 
 ## Getting started
 
@@ -86,7 +88,8 @@ src/
         ├── App.tsx       Companion UI and representative-state selection
         └── styles.css    Window layout and accessibility styles
 docs/
-└── mvp-0.1.md            MVP scope and technical design notes
+├── mvp-0.1.md            MVP scope and technical design notes
+└── hook-setup.md         Manual Claude Code and Codex hook setup
 ```
 
 ## Tech stack
@@ -99,10 +102,8 @@ docs/
 
 ## Roadmap
 
-- Add a shared multi-session state store
-- Normalize real Claude Code and Codex hook payloads
 - Provide safe hook installation, backup, and removal tools
-- Persist window position and restore active sessions
+- Restore active sessions after a restart
 - Add more ambient motion packs
 
 ## Privacy and security goals
