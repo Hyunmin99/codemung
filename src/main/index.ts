@@ -11,9 +11,12 @@ import {
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { startEventServer, type EventServer, type ProviderEvent } from './event-server'
+import { createSessionStore, type SessionSnapshot, type SessionStore } from './session-store'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const ALWAYS_ON_TOP_CHANNEL = 'window:set-always-on-top'
+const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
+const SESSION_GET_SNAPSHOT_CHANNEL = 'session:get-snapshot'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const EVENT_SERVER_RUNTIME_FILENAME = 'event-server.json'
 const POSITION_SAVE_DELAY_MS = 250
@@ -32,6 +35,7 @@ let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let eventServer: EventServer | null = null
+let sessionStore: SessionStore | null = null
 let isQuitting = false
 let positionSaveTimer: NodeJS.Timeout | null = null
 
@@ -108,11 +112,23 @@ function scheduleBoundsSave(): void {
   }, POSITION_SAVE_DELAY_MS)
 }
 
-function handleProviderEvent(event: ProviderEvent): void {
-  // The session store arrives in the next slice, so events are only observable in development.
-  if (!app.isPackaged) {
-    console.log('[codemung] event', event.provider, event.kind, event.sessionId, event.project ?? '')
+function broadcastSnapshot(snapshot: SessionSnapshot): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(SESSION_SNAPSHOT_CHANNEL, snapshot)
   }
+
+  if (!app.isPackaged) {
+    console.log(
+      '[codemung] snapshot',
+      snapshot.representativeState,
+      `claude=${snapshot.providers.claude.state}`,
+      `codex=${snapshot.providers.codex.state}`
+    )
+  }
+}
+
+function handleProviderEvent(event: ProviderEvent): void {
+  sessionStore?.apply(event)
 }
 
 async function startEventBridge(): Promise<void> {
@@ -291,6 +307,8 @@ if (hasSingleInstanceLock) {
     // The runtime file is removed synchronously inside close, so a stale port is never left behind.
     void eventServer?.close()
     eventServer = null
+    sessionStore?.dispose()
+    sessionStore = null
   })
   app.on('window-all-closed', () => {
     // The tray owns the app lifecycle on macOS.
@@ -312,6 +330,8 @@ if (hasSingleInstanceLock) {
       mainWindow.setAlwaysOnTop(enabled, enabled ? 'floating' : 'normal')
       return true
     })
+    ipcMain.handle(SESSION_GET_SNAPSHOT_CHANNEL, () => sessionStore?.getSnapshot() ?? null)
+    sessionStore = createSessionStore({ onChange: broadcastSnapshot })
     mainWindow = createWindow()
     tray = createTray()
     void startEventBridge()
