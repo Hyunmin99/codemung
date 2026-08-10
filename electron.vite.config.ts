@@ -11,7 +11,8 @@ export default defineConfig({
         input: {
           index: resolve('src/main/index.ts'),
           'event-server': resolve('src/main/event-server.ts'),
-          'session-store': resolve('src/main/session-store.ts')
+          'session-store': resolve('src/main/session-store.ts'),
+          'hook-bridge': resolve('src/main/hook-bridge.ts')
         }
       }
     }
