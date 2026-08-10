@@ -2,7 +2,7 @@
 
 > A cozy desktop companion for Claude Code and Codex.
 
-CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. The current prototype renders a state-aware lava animation in a transparent, draggable Electron window, with planned support for live Claude Code and Codex events.
+CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. The current prototype renders a state-aware lava animation in a transparent, draggable Electron window, connected to live Claude Code and Codex events through a manual hook bridge.
 
 ## Project status
 

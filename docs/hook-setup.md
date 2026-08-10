@@ -86,11 +86,30 @@ codex doctor
 
 ## 되돌리기
 
-백업 파일을 되돌리거나, 위에서 추가한 항목만 지운다.
+**Case 1: 설정 파일이 이미 있던 경우**
+
+설정 파일을 백업 파일로 되돌린다.
 
 ```bash
 mv ~/.claude/settings.json.bak ~/.claude/settings.json
+```
+
+`~/.codex/hooks.json`이 이미 있었으면:
+
+```bash
 mv ~/.codex/hooks.json.bak ~/.codex/hooks.json
+```
+
+**Case 2: Codex 설정 파일이 없었던 경우**
+
+`~/.codex/hooks.json`을 처음 만들었다면, 백업 파일이 없다. 위에서 추가한 CodeMung hook 항목만 지우거나 파일 전체를 지운다.
+
+```bash
+# 파일 전체 삭제 (가장 간단함)
+rm ~/.codex/hooks.json
+
+# 또는, 다른 hook이 있으면 CodeMung 항목만 지우기:
+# ~/.codex/hooks.json을 열어서 SessionStart, UserPromptSubmit, PermissionRequest, Stop 항목을 지운다.
 ```
 
 ## 알려진 한계
