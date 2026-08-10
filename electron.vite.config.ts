@@ -10,7 +10,8 @@ export default defineConfig({
         // The event server is emitted separately so that tests can import it without Electron.
         input: {
           index: resolve('src/main/index.ts'),
-          'event-server': resolve('src/main/event-server.ts')
+          'event-server': resolve('src/main/event-server.ts'),
+          'session-store': resolve('src/main/session-store.ts')
         }
       }
     }
