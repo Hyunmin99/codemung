@@ -4,7 +4,16 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        // The event server is emitted separately so that tests can import it without Electron.
+        input: {
+          index: resolve('src/main/index.ts'),
+          'event-server': resolve('src/main/event-server.ts')
+        }
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()]

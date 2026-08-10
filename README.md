@@ -17,7 +17,9 @@ The current prototype includes:
 - Reduced-motion support based on the system accessibility preference
 - A security-conscious Electron setup with context isolation, sandboxing, and Node.js disabled in the renderer
 
-The Claude Code and Codex event bridge, session aggregation, hook installer, and live state updates are still planned. The prototype currently uses hard-coded agent states to demonstrate the motion system.
+- A token-authenticated loopback event server that accepts provider events on `127.0.0.1`
+
+Session aggregation, the provider hook bridge, the hook installer, and live state updates are still planned. Received events are not yet reflected on screen, so the prototype continues to use hard-coded agent states to demonstrate the motion system.
 
 ## Getting started
 
@@ -98,7 +100,6 @@ docs/
 ## Roadmap
 
 - Add a shared multi-session state store
-- Receive local events through an authenticated loopback server
 - Normalize real Claude Code and Codex hook payloads
 - Provide safe hook installation, backup, and removal tools
 - Persist window position and restore active sessions
