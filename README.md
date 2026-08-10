@@ -88,7 +88,8 @@ src/
         ├── App.tsx       Companion UI and representative-state selection
         └── styles.css    Window layout and accessibility styles
 docs/
-└── mvp-0.1.md            MVP scope and technical design notes
+├── mvp-0.1.md            MVP scope and technical design notes
+└── hook-setup.md         Manual Claude Code and Codex hook setup
 ```
 
 ## Tech stack
