@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MotionScene } from './motion/MotionScene'
 import type { AgentState } from './motion/types'
-import { useSessionSnapshot } from './useSessionSnapshot'
 
 type Agent = {
   id: 'claude' | 'codex'
@@ -35,9 +34,6 @@ const STATE_LABELS: Record<AgentState, string> = {
   completed: '완료',
   error: '오류'
 }
-// Duplicated from src/main/session-store.ts and the two copies must stay in sync.
-// snapshot.representativeState cannot be used directly because hidden agents must not drive
-// the scene, and the store has no access to the renderer-side visibility settings.
 const STATE_PRIORITY: Record<AgentState, number> = {
   idle: 0,
   working: 1,
@@ -45,9 +41,9 @@ const STATE_PRIORITY: Record<AgentState, number> = {
   error: 3,
   waiting_permission: 4
 }
-const AGENT_DEFINITIONS: readonly { id: Agent['id']; name: string }[] = [
-  { id: 'claude', name: 'Claude' },
-  { id: 'codex', name: 'Codex' }
+const INITIAL_AGENTS: Agent[] = [
+  { id: 'claude', name: 'Claude', state: 'idle' },
+  { id: 'codex', name: 'Codex', state: 'working' }
 ]
 const DEFAULT_SETTINGS: CompanionSettings = {
   alwaysOnTop: true,
@@ -135,12 +131,11 @@ function SettingsScreen({
 
       <section className="settings-preview-row" aria-label="Companion 미리보기">
         <div className="settings-preview" aria-hidden="true">
-          <MotionScene pack="lava" state={settings.previewState} reduceMotion={settings.reduceMotion} />
+          <MotionScene pack="lava" state={representativeState} reduceMotion={settings.reduceMotion} />
         </div>
         <div>
           <strong>{agents.length === 0 ? '표시할 에이전트 없음' : `${agents.length}개 에이전트 표시`}</strong>
-          <p>companion 상태: {STATE_LABELS[representativeState]}</p>
-          <p>미리보기 상태: {STATE_LABELS[settings.previewState]}</p>
+          <p>현재 상태: {STATE_LABELS[representativeState]}</p>
         </div>
       </section>
 
@@ -172,7 +167,7 @@ function SettingsScreen({
           <label className="setting-row">
             <span>
               <strong>상태 미리보기</strong>
-              <small>이 설정 창의 미리보기에만 적용됩니다</small>
+              <small>Codex 상태를 화면에 반영합니다</small>
             </span>
             <select
               value={settings.previewState}
@@ -225,14 +220,11 @@ function App(): React.JSX.Element {
   const isSettingsWindow = window.location.hash === '#settings'
   const [settings, setSettings] = useState(readStoredSettings)
   const [appInfo, setAppInfo] = useState<CodeMungAppInfo | null>(null)
-  const snapshot = useSessionSnapshot()
-  // Hidden agents must not drive the scene, so the priority is recomputed over the visible ones.
-  const agents = useMemo<Agent[]>(
-    () =>
-      AGENT_DEFINITIONS
-        .filter((agent) => settings.visibleAgents[agent.id])
-        .map((agent) => ({ ...agent, state: snapshot?.providers[agent.id].state ?? 'idle' })),
-    [snapshot, settings.visibleAgents]
+  const agents = useMemo(
+    () => INITIAL_AGENTS
+      .map((agent) => agent.id === 'codex' ? { ...agent, state: settings.previewState } : agent)
+      .filter((agent) => settings.visibleAgents[agent.id]),
+    [settings.previewState, settings.visibleAgents]
   )
   const representativeState = getRepresentativeState(agents)
 

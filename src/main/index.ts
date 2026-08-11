@@ -10,15 +10,10 @@ import {
 } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { startEventServer, type EventServer, type ProviderEvent } from './event-server'
-import { createSessionStore, type SessionSnapshot, type SessionStore } from './session-store'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const ALWAYS_ON_TOP_CHANNEL = 'window:set-always-on-top'
-const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
-const SESSION_GET_SNAPSHOT_CHANNEL = 'session:get-snapshot'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
-const EVENT_SERVER_RUNTIME_FILENAME = 'event-server.json'
 const POSITION_SAVE_DELAY_MS = 250
 
 const COMPANION_WINDOW_SIZE = {
@@ -34,8 +29,6 @@ const SETTINGS_WINDOW_SIZE = {
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let tray: Tray | null = null
-let eventServer: EventServer | null = null
-let sessionStore: SessionStore | null = null
 let isQuitting = false
 let positionSaveTimer: NodeJS.Timeout | null = null
 
@@ -110,41 +103,6 @@ function scheduleBoundsSave(): void {
     positionSaveTimer = null
     saveMainWindowBounds()
   }, POSITION_SAVE_DELAY_MS)
-}
-
-function broadcastSnapshot(snapshot: SessionSnapshot): void {
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) window.webContents.send(SESSION_SNAPSHOT_CHANNEL, snapshot)
-  }
-
-  if (!app.isPackaged) {
-    console.log(
-      '[codemung] snapshot',
-      snapshot.representativeState,
-      `claude=${snapshot.providers.claude.state}`,
-      `codex=${snapshot.providers.codex.state}`
-    )
-  }
-}
-
-function handleProviderEvent(event: ProviderEvent): void {
-  sessionStore?.apply(event)
-}
-
-async function startEventBridge(): Promise<void> {
-  try {
-    eventServer = await startEventServer({
-      runtimeFilePath: join(app.getPath('userData'), EVENT_SERVER_RUNTIME_FILENAME),
-      onEvent: handleProviderEvent
-    })
-
-    if (!app.isPackaged) {
-      console.log(`[codemung] event server listening on 127.0.0.1:${eventServer.port}`)
-    }
-  } catch (error) {
-    // The companion still runs without the bridge; provider events are simply not received.
-    console.error('[codemung] the event server could not start', error)
-  }
 }
 
 function quitApp(): void {
@@ -304,11 +262,6 @@ if (hasSingleInstanceLock) {
     isQuitting = true
     if (positionSaveTimer) clearTimeout(positionSaveTimer)
     saveMainWindowBounds()
-    // The runtime file is removed synchronously inside close, so a stale port is never left behind.
-    void eventServer?.close()
-    eventServer = null
-    sessionStore?.dispose()
-    sessionStore = null
   })
   app.on('window-all-closed', () => {
     // The tray owns the app lifecycle on macOS.
@@ -330,10 +283,7 @@ if (hasSingleInstanceLock) {
       mainWindow.setAlwaysOnTop(enabled, enabled ? 'floating' : 'normal')
       return true
     })
-    ipcMain.handle(SESSION_GET_SNAPSHOT_CHANNEL, () => sessionStore?.getSnapshot() ?? null)
-    sessionStore = createSessionStore({ onChange: broadcastSnapshot })
     mainWindow = createWindow()
     tray = createTray()
-    void startEventBridge()
   })
 }
