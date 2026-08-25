@@ -471,3 +471,15 @@ CodeMung의 시각/모션 시도를 기록한다. 각 시도마다 **먼저 느�
 - **또렷한 실루엣** — 몸통 기울기 9 → 12 (006)
 - **이음매 없는 코어** — 온도장을 `joined-balls` 블러에서 (007). 방울이 겹친 윤곽이 보이는 게 신경 쓰일 때
 - **어두운 쪽 채도** — 가장자리 flood를 `#6d0f06`으로 (007)
+
+---
+
+## 시각 레퍼런스
+
+### Metal Forge — Orb Lava Lamp
+
+- [프리셋 열기](https://metalforge.xyz/editor#effect=orb-lava-lamp&scope=orbs&speed=1&shimmer=0.12&wobble=0&radius=0.86&blobs=6&blobSize=1&blobVary=1&refraction=0.65&seed=18&light=-0.5%2C-0.86&rim=0.75&glint=0.6&innerGlow=0.6&halo=0.25&contrast=1&bias=0&fringe=0.4&iridescence=0&colorA=%232E1065&colorB=%23FB7185&colorC=%23FDBA74&rimColor=%23FFFFFF&glintColor=%23FFFFFF&iridColor=%23512F7F&grain=1&exposure=1&edgeSoftness=0.005&edgeGlow=0&glowColor=%23FB7185)
+- **효과**: Orb Lava Lamp, 6 blobs, radius 0.86, refraction 0.65
+- **표면**: shimmer 0.12, rim 0.75, glint 0.6, inner glow 0.6, halo 0.25, grain 1
+- **팔레트**: `#2E1065` → `#FB7185` → `#FDBA74`
+- **참고 포인트**: 보라–코랄–피치 색 전이, 흰색 림과 글린트, 유리처럼 굴절되는 다중 오브 표현
