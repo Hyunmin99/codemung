@@ -1,0 +1,30 @@
+name: Notion timeline
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: notion-timeline
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Test sync logic
+        run: python3 -m unittest discover -s scripts -p 'test_notion_timeline.py'
+      - name: Reconcile activity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_ACTIVITY_SOURCE_ID: ${{ vars.NOTION_ACTIVITY_SOURCE_ID }}
+          NOTION_PROJECT_PAGE_ID: ${{ vars.NOTION_PROJECT_PAGE_ID }}
+        run: python3 scripts/notion_timeline.py
