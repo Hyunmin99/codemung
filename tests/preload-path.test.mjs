@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const compiledMainPath = join(repositoryRoot, 'out/main/index.js')
-const compiledPreloadPath = join(repositoryRoot, 'out/preload/index.mjs')
+const compiledPreloadPath = join(repositoryRoot, 'out/preload/index.cjs')
 const appSourcePath = join(repositoryRoot, 'src/renderer/src/App.tsx')
 const stylesSourcePath = join(repositoryRoot, 'src/renderer/src/styles.css')
 
@@ -15,8 +15,8 @@ test('compiled BrowserWindows load the emitted preload bundle', () => {
 
   const compiledMain = readFileSync(compiledMainPath, 'utf8')
 
-  assert.match(compiledMain, /\.\.\/preload\/index\.mjs/)
-  assert.doesNotMatch(compiledMain, /\.\.\/preload\/index\.js/)
+  assert.match(compiledMain, /\.\.\/preload\/index\.cjs/)
+  assert.doesNotMatch(compiledMain, /\.\.\/preload\/index\.(?:mjs|js)/)
 })
 
 test('companion uses Electron native draggable regions', () => {

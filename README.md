@@ -12,7 +12,8 @@ The current prototype includes:
 
 - A transparent, frameless 280 × 280 desktop window
 - An always-on-top companion that stays visible across workspaces
-- A menu bar icon for showing, hiding, and quitting the app
+- Separate Codex (ChatGPT) and Claude menu bar icons with five-hour subscription usage
+- A usage popover with five-hour and weekly quotas, reset countdowns, and refresh/connection status
 - A lava motion pack with visual variants for `idle`, `working`, `waiting_permission`, `completed`, and `error`
 - Reduced-motion support based on the system accessibility preference
 - A security-conscious Electron setup with context isolation, sandboxing, and Node.js disabled in the renderer
@@ -35,7 +36,17 @@ npm install
 npm run dev
 ```
 
-The companion appears as a small floating window. Drag anywhere inside the window to reposition it. Use the CodeMung menu bar icon to show or hide the window, or to quit the app.
+The companion appears as a small floating window. Drag anywhere inside the window to reposition it. Click either provider's menu bar item to inspect usage. The popover and right-click menu provide companion visibility, settings, and quit actions.
+
+### Subscription usage
+
+Sign in with the installed Codex and Claude Code CLIs. CodeMung displays the **percentage used**, not the percentage remaining. It reads server quota rather than estimating it from local token logs.
+
+- **Codex:** Uses `codex app-server` to read the current account's five-hour and weekly limits. API-key accounts do not expose ChatGPT subscription quota. If several quota buckets are returned, select the desired bucket in the popover.
+- **Claude:** Uses the CLI's OAuth credentials. On macOS, click **Claude 연결** to read the CLI's Keychain entry; macOS may request access. CodeMung does not rewrite the CLI's credentials. The OAuth usage endpoint is not a guaranteed public API, so expired credentials or unsupported responses require reconnection or a future adapter update.
+- Refresh runs every 60 seconds while awake. A dash means no quota is available; old values are marked stale when a refresh fails. A weekly-exhaustion marker does not replace the five-hour percentage.
+
+Authentication stays in the Electron main process. Tokens are not sent to the renderer or saved in CodeMung settings. The first version does not import browser cookies or provide account switching, billing analysis, or usage history.
 
 ## Available scripts
 

@@ -4,15 +4,28 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  powerMonitor,
   screen,
   Tray,
   type Rectangle
 } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { UsageService } from './usage/service'
+import type { UsageSnapshot } from '../shared/usage'
+import { createUsageTrayController, type UsageTrayController } from './usage-tray'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const ALWAYS_ON_TOP_CHANNEL = 'window:set-always-on-top'
+const USAGE_REFRESH_CHANNEL = 'usage:refresh'
+const USAGE_CONNECT_CLAUDE_CHANNEL = 'usage:connect-claude'
+const USAGE_SNAPSHOT_CHANNEL = 'usage:snapshot'
+const USAGE_CLOSE_CHANNEL = 'usage:close'
+const OPEN_SETTINGS_CHANNEL = 'app:open-settings'
+const TOGGLE_COMPANION_CHANNEL = 'app:toggle-companion'
+const QUIT_CHANNEL = 'app:quit'
+const USAGE_BUCKET_CHANNEL = 'usage:set-bucket'
+const USAGE_GET_CHANNEL = 'usage:get'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const POSITION_SAVE_DELAY_MS = 250
 
@@ -29,8 +42,23 @@ const SETTINGS_WINDOW_SIZE = {
 let mainWindow: BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let usageTray: UsageTrayController | null = null
+let usageService: UsageService | null = null
 let isQuitting = false
 let positionSaveTimer: NodeJS.Timeout | null = null
+
+function isTrustedRenderer(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean {
+  const frameUrl = event.senderFrame?.url ?? ''
+  if (event.senderFrame !== event.sender.mainFrame) return false
+  try {
+    const actual = new URL(frameUrl)
+    if (process.env.ELECTRON_RENDERER_URL) {
+      const expected = new URL(process.env.ELECTRON_RENDERER_URL)
+      return actual.origin === expected.origin && actual.pathname === expected.pathname
+    }
+    return actual.protocol === 'file:' && actual.pathname.endsWith('/renderer/index.html')
+  } catch { return false }
+}
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
@@ -151,7 +179,7 @@ function createSettingsWindow(): BrowserWindow {
     fullscreenable: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+        preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -179,7 +207,10 @@ function openSettings(): void {
 
 function buildCompanionContextMenu(): Menu {
   return Menu.buildFromTemplate([
+    { label: '사용량', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
     { label: '설정…', click: openSettings },
+    { type: 'separator' },
+    { label: '표시/숨기기', click: toggleWindow },
     { type: 'separator' },
     { label: '종료', click: quitApp }
   ])
@@ -200,8 +231,8 @@ function createWindow(): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     hasShadow: false,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      webPreferences: {
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -242,17 +273,6 @@ function createTray(): Tray {
   const appTray = new Tray(trayIcon)
 
   appTray.setToolTip('CodeMung')
-  appTray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: '설정…', click: openSettings },
-      { type: 'separator' },
-      { label: '표시/숨기기', click: toggleWindow },
-      { type: 'separator' },
-      { label: '종료', click: quitApp }
-    ])
-  )
-  appTray.on('click', toggleWindow)
-
   return appTray
 }
 
@@ -283,7 +303,28 @@ if (hasSingleInstanceLock) {
       mainWindow.setAlwaysOnTop(enabled, enabled ? 'floating' : 'normal')
       return true
     })
+    ipcMain.handle(USAGE_REFRESH_CHANNEL, async (event) => {
+      if (!isTrustedRenderer(event)) return undefined
+      if (!usageService) return undefined
+      return usageService.refresh()
+    })
+    ipcMain.handle(USAGE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? usageService?.getSnapshot() : undefined)
+    ipcMain.handle(USAGE_CONNECT_CLAUDE_CHANNEL, async (event) => isTrustedRenderer(event) ? usageService?.refresh({ allowKeychain: true }) : undefined)
+    ipcMain.on(USAGE_CLOSE_CHANNEL, (event) => { if (isTrustedRenderer(event)) usageTray?.hide() })
+    ipcMain.on(USAGE_BUCKET_CHANNEL, (event, id: unknown) => { if (isTrustedRenderer(event) && typeof id === 'string') usageTray?.setBucket(id) })
+    ipcMain.on(OPEN_SETTINGS_CHANNEL, (event) => { if (isTrustedRenderer(event)) openSettings() })
+    ipcMain.on(TOGGLE_COMPANION_CHANNEL, (event) => { if (isTrustedRenderer(event)) toggleWindow() })
+    ipcMain.on(QUIT_CHANNEL, (event) => { if (isTrustedRenderer(event)) quitApp() })
     mainWindow = createWindow()
     tray = createTray()
+    usageService = new UsageService((snapshot: UsageSnapshot) => usageTray?.updateTray(snapshot))
+    usageTray = createUsageTrayController(tray, loadRenderer, () => undefined, (_source) => buildCompanionContextMenu().popup(), () => {
+      const snapshot = usageService?.getSnapshot()
+      if (!snapshot || [snapshot.codex, snapshot.claude].some((provider) => !provider.updatedAt || Date.now() - provider.updatedAt > 30_000)) void usageService?.refresh()
+    })
+    usageService.start()
+    powerMonitor.on('suspend', () => usageService?.suspend())
+    powerMonitor.on('resume', () => usageService?.resume())
+    app.on('before-quit', () => { usageService?.stop(); usageTray?.destroy() })
   })
 }
