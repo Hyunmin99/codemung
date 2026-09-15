@@ -82,7 +82,9 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
       className={`lava-motion${reducedMotion ? ' lava-motion--reduced' : ''}`}
       data-state={String(state)}
       style={style}
-      viewBox="0 0 240 300"
+      // Crop the source artwork to its animated bounds so the transparent
+      // companion window stays close to the visible lava.
+      viewBox="55 55 150 170"
       role="img"
       aria-label={`라바 모션, ${String(state)} 상태`}
       xmlns="http://www.w3.org/2000/svg"

@@ -5,7 +5,8 @@ import { CLAUDE_ICON_PATH, CODEX_ICON_PATH } from '../../shared/provider-icons'
 
 function usageLabel(window: UsageWindow | null): string {
   if (!window) return '—'
-  return `${Math.max(0, Math.min(100, Math.round(window.usedPercent)))}% 사용`
+  const remaining = Math.max(0, Math.min(100, 100 - window.usedPercent))
+  return `${Math.round(remaining)}% 남음`
 }
 
 function resetLabel(resetsAt: number | null, now = Date.now()): string {
@@ -23,10 +24,10 @@ function resetLabel(resetsAt: number | null, now = Date.now()): string {
 }
 
 function UsageBar({ label, value, reset, exhausted }: { label: string; value: UsageWindow | null; reset: string; exhausted?: boolean }): React.JSX.Element {
-  const used = value ? Math.max(0, Math.min(100, value.usedPercent)) : 0
+  const remaining = value ? Math.max(0, Math.min(100, 100 - value.usedPercent)) : 0
   return <div className="usage-meter">
     <div className="usage-meter-heading"><span>{label}</span><strong className={exhausted ? 'usage-exhausted' : ''}>{usageLabel(value)}</strong></div>
-    <div className="usage-track" role="progressbar" aria-label={`${label} 사용량`} aria-valuemin={0} aria-valuemax={100} {...(value ? { 'aria-valuenow': used } : {})}><span style={{ width: `${used}%` }} /></div>
+    <div className="usage-track" role="progressbar" aria-label={`${label} 남은 사용량`} aria-valuemin={0} aria-valuemax={100} {...(value ? { 'aria-valuenow': remaining } : {})}><span style={{ width: `${remaining}%` }} /></div>
     <small>{exhausted ? '한도 소진' : reset}</small>
   </div>
 }
@@ -49,10 +50,10 @@ function UsagePopover(): React.JSX.Element {
   const bucket = codex?.buckets.find((entry) => entry.id === selectedBucket) ?? codex?.buckets[0]
   useEffect(() => { if (bucket && bucket.id !== selectedBucket) { setSelectedBucket(bucket.id); window.codemung?.setUsageBucket(bucket.id) } }, [bucket?.id, selectedBucket])
   const refresh = async () => { setRefreshing(true); setRefreshError(null); try { const next = await window.codemung?.refreshUsage(); if (next) setSnapshot(next) } catch (error) { setRefreshError(error instanceof Error ? error.message : '새로 고치지 못했습니다.') } finally { setRefreshing(false) } }
-  return <main className="usage-popover" aria-label="CodeMung 사용량">
-    <header className="usage-header"><div><span className="eyebrow">CODEMUNG</span><h1>사용량</h1></div><button className="icon-button" onClick={() => void refresh()} disabled={refreshing} aria-label="새로 고침">↻</button></header>
+  return <main className="usage-popover" aria-label="CodeMung 남은 사용량">
+    <header className="usage-header"><div><span className="eyebrow">CODEMUNG</span><h1>남은 사용량</h1></div><button className="icon-button" onClick={() => void refresh()} disabled={refreshing} aria-label="새로 고침">↻</button></header>
     <section className="provider-card"><div className="provider-heading"><ProviderIcon provider="codex" /><div><h2>Codex</h2><span>{codex?.status === 'stale' ? '갱신 지연' : codex?.status === 'ready' ? '정상 연결됨' : codex?.message ?? '불러오는 중'}</span></div></div>
-      {codex && codex.buckets.length > 1 && <label className="bucket-select"><span>사용량 구분</span><select value={bucket?.id ?? ''} onChange={(event) => { setSelectedBucket(event.target.value); window.codemung?.setUsageBucket(event.target.value) }}>{codex.buckets.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>}
+      {codex && codex.buckets.length > 1 && <label className="bucket-select"><span>남은 사용량 구분</span><select value={bucket?.id ?? ''} onChange={(event) => { setSelectedBucket(event.target.value); window.codemung?.setUsageBucket(event.target.value) }}>{codex.buckets.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>}
       <UsageBar label="5시간" value={bucket?.fiveHour ?? null} reset={resetLabel(bucket?.fiveHour?.resetsAt ?? null, clock)} />
       <UsageBar label="주간" value={bucket?.weekly ?? null} exhausted={bucket?.weekly?.usedPercent === 100} reset={resetLabel(bucket?.weekly?.resetsAt ?? null, clock)} />
       <small className="provider-updated">{codex?.updatedAt ? `업데이트 ${new Date(codex.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
@@ -62,7 +63,7 @@ function UsagePopover(): React.JSX.Element {
       <UsageBar label="주간" value={claude?.buckets[0]?.weekly ?? null} exhausted={claude?.buckets[0]?.weekly?.usedPercent === 100} reset={resetLabel(claude?.buckets[0]?.weekly?.resetsAt ?? null, clock)} />
       <small className="provider-updated">{claude?.updatedAt ? `업데이트 ${new Date(claude.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
     </section>
-    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => void window.codemung?.connectClaude()}>Claude 연결</button><button onClick={() => void refresh()} disabled={refreshing}>{refreshing ? '갱신 중…' : '새로 고침'}</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>동반자</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
+    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => void window.codemung?.connectClaude()}>Claude 연결</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>캐릭터 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
   </main>
 }
 
@@ -72,25 +73,6 @@ type Agent = {
   state: AgentState
 }
 
-type AgentVisibility = Record<Agent['id'], boolean>
-
-type CompanionSettings = {
-  alwaysOnTop: boolean
-  reduceMotion: boolean
-  previewState: AgentState
-  visibleAgents: AgentVisibility
-}
-
-type SettingKey = keyof CompanionSettings
-
-const SETTINGS_STORAGE_KEY = 'codemung:companion-settings'
-const AGENT_STATES: readonly AgentState[] = [
-  'idle',
-  'working',
-  'waiting_permission',
-  'completed',
-  'error'
-]
 const STATE_LABELS: Record<AgentState, string> = {
   idle: '쉬는 중',
   working: '작업 중',
@@ -109,56 +91,6 @@ const INITIAL_AGENTS: Agent[] = [
   { id: 'claude', name: 'Claude', state: 'idle' },
   { id: 'codex', name: 'Codex', state: 'working' }
 ]
-const DEFAULT_SETTINGS: CompanionSettings = {
-  alwaysOnTop: true,
-  reduceMotion: false,
-  previewState: 'working',
-  visibleAgents: { claude: true, codex: true }
-}
-
-function isAgentState(value: unknown): value is AgentState {
-  return typeof value === 'string' && AGENT_STATES.includes(value as AgentState)
-}
-
-function parseSettings(rawSettings: string | null): CompanionSettings {
-  if (!rawSettings) return DEFAULT_SETTINGS
-
-  try {
-    const parsed = JSON.parse(rawSettings) as Partial<CompanionSettings>
-    return {
-      alwaysOnTop:
-        typeof parsed.alwaysOnTop === 'boolean'
-          ? parsed.alwaysOnTop
-          : DEFAULT_SETTINGS.alwaysOnTop,
-      reduceMotion:
-        typeof parsed.reduceMotion === 'boolean'
-          ? parsed.reduceMotion
-          : DEFAULT_SETTINGS.reduceMotion,
-      previewState: isAgentState(parsed.previewState)
-        ? parsed.previewState
-        : DEFAULT_SETTINGS.previewState,
-      visibleAgents: {
-        claude:
-          typeof parsed.visibleAgents?.claude === 'boolean'
-            ? parsed.visibleAgents.claude
-            : DEFAULT_SETTINGS.visibleAgents.claude,
-        codex:
-          typeof parsed.visibleAgents?.codex === 'boolean'
-            ? parsed.visibleAgents.codex
-            : DEFAULT_SETTINGS.visibleAgents.codex
-      }
-    }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
-
-function readStoredSettings(): CompanionSettings {
-  return typeof window === 'undefined'
-    ? DEFAULT_SETTINGS
-    : parseSettings(window.localStorage.getItem(SETTINGS_STORAGE_KEY))
-}
-
 function getRepresentativeState(agents: readonly Agent[]): AgentState {
   return agents.reduce<AgentState>(
     (current, agent) =>
@@ -168,114 +100,63 @@ function getRepresentativeState(agents: readonly Agent[]): AgentState {
 }
 
 interface SettingsScreenProps {
-  agents: readonly Agent[]
   appInfo: CodeMungAppInfo | null
-  representativeState: AgentState
-  settings: CompanionSettings
-  onReset: () => void
-  onSettingChange: <Key extends SettingKey>(key: Key, value: CompanionSettings[Key]) => void
-  onVisibleAgentChange: (agentId: Agent['id'], visible: boolean) => void
 }
 
+const CHARACTER_SIZE_OPTIONS: Array<{ value: CharacterSize; label: string }> = [
+  { value: 'small', label: '작게' },
+  { value: 'medium', label: '보통' },
+  { value: 'large', label: '크게' }
+]
+
 function SettingsScreen({
-  agents,
-  appInfo,
-  representativeState,
-  settings,
-  onReset,
-  onSettingChange,
-  onVisibleAgentChange
+  appInfo
 }: SettingsScreenProps): React.JSX.Element {
+  const [characterSize, setCharacterSize] = useState<CharacterSize>('medium')
+  useEffect(() => {
+    void window.codemung?.getCharacterSize().then((size) => { if (size) setCharacterSize(size) })
+    return window.codemung?.onCharacterSize((size) => setCharacterSize(size))
+  }, [])
   return (
     <main className="settings-window" aria-label="CodeMung 설정">
       <header className="settings-titlebar">
         <h1>CodeMung 설정</h1>
-        <p>{appInfo ? `버전 ${appInfo.version}` : 'Companion 환경설정'}</p>
+        <p>{appInfo ? `버전 ${appInfo.version}` : 'CodeMung 환경설정'}</p>
       </header>
 
-      <section className="settings-preview-row" aria-label="Companion 미리보기">
-        <div className="settings-preview" aria-hidden="true">
-          <MotionScene pack="lava" state={representativeState} reduceMotion={settings.reduceMotion} />
-        </div>
-        <div>
-          <strong>{agents.length === 0 ? '표시할 에이전트 없음' : `${agents.length}개 에이전트 표시`}</strong>
-          <p>현재 상태: {STATE_LABELS[representativeState]}</p>
-        </div>
-      </section>
-
-      <section className="settings-group" aria-labelledby="agents-heading">
-        <h2 id="agents-heading">에이전트</h2>
+      <section className="settings-group" aria-labelledby="character-size-heading">
+        <h2 id="character-size-heading">캐릭터</h2>
         <div className="settings-group-content">
-          <label className="setting-row">
-            <span>Claude</span>
-            <input
-              type="checkbox"
-              checked={settings.visibleAgents.claude}
-              onChange={(event) => onVisibleAgentChange('claude', event.currentTarget.checked)}
-            />
-          </label>
-          <label className="setting-row">
-            <span>Codex</span>
-            <input
-              type="checkbox"
-              checked={settings.visibleAgents.codex}
-              onChange={(event) => onVisibleAgentChange('codex', event.currentTarget.checked)}
-            />
-          </label>
+          <div className="setting-row settings-size-row">
+            <span><strong>캐릭터 크기</strong><small>라바와 클릭 영역을 함께 조절합니다</small></span>
+            <div className="settings-segmented" role="radiogroup" aria-label="캐릭터 크기">
+              {CHARACTER_SIZE_OPTIONS.map((option) => <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={characterSize === option.value}
+                className="settings-segment"
+                onClick={() => { setCharacterSize(option.value); window.codemung?.setCharacterSize(option.value) }}
+              >{option.label}</button>)}
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="settings-group" aria-labelledby="motion-heading">
-        <h2 id="motion-heading">모션</h2>
+      <section className="settings-group" aria-labelledby="updates-heading">
+        <h2 id="updates-heading">업데이트</h2>
         <div className="settings-group-content">
-          <label className="setting-row">
+          <div className="setting-row settings-update-row">
             <span>
-              <strong>상태 미리보기</strong>
-              <small>Codex 상태를 화면에 반영합니다</small>
+              <strong>CodeMung 업데이트</strong>
+              <small>최신 릴리스 확인</small>
             </span>
-            <select
-              value={settings.previewState}
-              onChange={(event) => onSettingChange('previewState', event.currentTarget.value as AgentState)}
-            >
-              {AGENT_STATES.map((state) => (
-                <option key={state} value={state}>{STATE_LABELS[state]}</option>
-              ))}
-            </select>
-          </label>
-          <label className="setting-row">
-            <span>
-              <strong>저자극 모션</strong>
-              <small>애니메이션의 속도와 흔들림을 줄입니다</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={settings.reduceMotion}
-              onChange={(event) => onSettingChange('reduceMotion', event.currentTarget.checked)}
-            />
-          </label>
+            <button type="button" className="settings-update-button" onClick={() => void window.codemung?.openReleases()}>
+              확인
+            </button>
+          </div>
         </div>
       </section>
-
-      <section className="settings-group" aria-labelledby="window-heading">
-        <h2 id="window-heading">창</h2>
-        <div className="settings-group-content">
-          <label className="setting-row">
-            <span>
-              <strong>항상 위</strong>
-              <small>다른 창 위에 companion을 표시합니다</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={settings.alwaysOnTop}
-              onChange={(event) => onSettingChange('alwaysOnTop', event.currentTarget.checked)}
-            />
-          </label>
-        </div>
-      </section>
-
-      <div className="settings-reset">
-        <button type="button" onClick={onReset}>기본값으로 복원</button>
-      </div>
     </main>
   )
 }
@@ -283,54 +164,40 @@ function SettingsScreen({
 function App(): React.JSX.Element {
   if (window.location.hash === '#usage') return <UsagePopover />
   const isSettingsWindow = window.location.hash === '#settings'
-  const [settings, setSettings] = useState(readStoredSettings)
   const [appInfo, setAppInfo] = useState<CodeMungAppInfo | null>(null)
+  const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null)
   const agents = useMemo(
-    () => INITIAL_AGENTS
-      .map((agent) => agent.id === 'codex' ? { ...agent, state: settings.previewState } : agent)
-      .filter((agent) => settings.visibleAgents[agent.id]),
-    [settings.previewState, settings.visibleAgents]
+    () => snapshot
+      ? INITIAL_AGENTS.filter((agent) => ['ready', 'stale'].includes(snapshot[agent.id].status))
+      : [],
+    [snapshot]
   )
   const representativeState = getRepresentativeState(agents)
+  const [characterSize, setCharacterSize] = useState<CharacterSize>('medium')
 
   useEffect(() => {
     if (isSettingsWindow) void window.codemung?.getAppInfo().then(setAppInfo)
   }, [isSettingsWindow])
 
   useEffect(() => {
-    const handleStorage = (event: StorageEvent): void => {
-      if (event.key === SETTINGS_STORAGE_KEY) setSettings(parseSettings(event.newValue))
-    }
-    window.addEventListener('storage', handleStorage)
-    return () => window.removeEventListener('storage', handleStorage)
+    const unsubscribe = window.codemung?.onUsageSnapshot((next) => setSnapshot(next))
+    void window.codemung?.getUsageSnapshot().then((current) => { if (current) setSnapshot(current) })
+    return unsubscribe
   }, [])
 
   useEffect(() => {
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
-  }, [settings])
-
-  useEffect(() => {
-    void window.codemung?.setAlwaysOnTop(settings.alwaysOnTop)
-  }, [settings.alwaysOnTop])
-
-  function updateSetting<Key extends SettingKey>(key: Key, value: CompanionSettings[Key]): void {
-    setSettings((current) => ({ ...current, [key]: value }))
-  }
-
-  function updateVisibleAgent(agentId: Agent['id'], visible: boolean): void {
-    setSettings((current) => ({
-      ...current,
-      visibleAgents: { ...current.visibleAgents, [agentId]: visible }
-    }))
-  }
+    const unsubscribe = window.codemung?.onCharacterSize((size) => setCharacterSize(size))
+    void window.codemung?.getCharacterSize().then((size) => { if (size) setCharacterSize(size) })
+    return unsubscribe
+  }, [])
 
   if (isSettingsWindow) {
-    return <SettingsScreen agents={agents} appInfo={appInfo} representativeState={representativeState} settings={settings} onReset={() => setSettings(DEFAULT_SETTINGS)} onSettingChange={updateSetting} onVisibleAgentChange={updateVisibleAgent} />
+    return <SettingsScreen appInfo={appInfo} />
   }
 
   return (
     <main className="companion" aria-label="코드멍 라바 모션">
-      <MotionScene pack="lava" state={representativeState} reduceMotion={settings.reduceMotion} />
+      <MotionScene pack="lava" state={representativeState} size={characterSize} />
       <p className="sr-only" aria-live="polite">현재 대표 상태: {STATE_LABELS[representativeState]}</p>
     </main>
   )

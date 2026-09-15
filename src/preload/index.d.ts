@@ -8,12 +8,16 @@ declare global {
     version: string
     platform: string
   }
+  type CharacterSize = 'small' | 'medium' | 'large'
 
   interface CodeMungApi {
     getAppInfo: () => Promise<CodeMungAppInfo>
-    setAlwaysOnTop: (enabled: boolean) => Promise<boolean>
+    openReleases: () => Promise<boolean>
     refreshUsage: () => Promise<UsageSnapshot | undefined>
     getUsageSnapshot: () => Promise<UsageSnapshot | undefined>
+    getCharacterSize: () => Promise<CharacterSize | undefined>
+    setCharacterSize: (size: CharacterSize) => void
+    onCharacterSize: (listener: (size: CharacterSize) => void) => () => void
     connectClaude: () => Promise<UsageSnapshot | undefined>
     onUsageSnapshot: (listener: (snapshot: UsageSnapshot) => void) => () => void
     closeUsage: () => void

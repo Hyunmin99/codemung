@@ -5,7 +5,7 @@ import type { AgentState, MotionPackId, MotionParams } from './types'
 interface MotionSceneProps {
   pack: MotionPackId
   state: AgentState
-  reduceMotion?: boolean
+  size?: CharacterSize
 }
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
@@ -41,7 +41,7 @@ function clampParams(params: MotionParams, reducedMotion: boolean): MotionParams
 export function MotionScene({
   pack,
   state,
-  reduceMotion = false
+  size = 'medium'
 }: MotionSceneProps): React.JSX.Element {
   const [reducedMotion, setReducedMotion] = useState(getInitialReducedMotion)
 
@@ -58,7 +58,7 @@ export function MotionScene({
   }, [])
 
   const definition = getMotionPack(pack)
-  const effectiveReducedMotion = reducedMotion || reduceMotion
+  const effectiveReducedMotion = reducedMotion
   const motion = clampParams(definition.states[state], effectiveReducedMotion)
   const PackComponent = definition.Component
 
@@ -68,6 +68,7 @@ export function MotionScene({
       data-motion-pack={definition.id}
       data-motion-state={state}
       data-reduced-motion={effectiveReducedMotion ? 'true' : 'false'}
+      data-character-size={size}
     >
       <PackComponent state={state} motion={motion} reducedMotion={effectiveReducedMotion} />
     </div>

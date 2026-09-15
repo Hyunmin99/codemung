@@ -6,6 +6,7 @@ import {
   nativeImage,
   powerMonitor,
   screen,
+  shell,
   Tray,
   type Rectangle
 } from 'electron'
@@ -16,7 +17,7 @@ import type { UsageSnapshot } from '../shared/usage'
 import { createUsageTrayController, type UsageTrayController } from './usage-tray'
 
 const APP_INFO_CHANNEL = 'app:get-info'
-const ALWAYS_ON_TOP_CHANNEL = 'window:set-always-on-top'
+const OPEN_RELEASES_CHANNEL = 'app:open-releases'
 const USAGE_REFRESH_CHANNEL = 'usage:refresh'
 const USAGE_CONNECT_CLAUDE_CHANNEL = 'usage:connect-claude'
 const USAGE_SNAPSHOT_CHANNEL = 'usage:snapshot'
@@ -26,17 +27,23 @@ const TOGGLE_COMPANION_CHANNEL = 'app:toggle-companion'
 const QUIT_CHANNEL = 'app:quit'
 const USAGE_BUCKET_CHANNEL = 'usage:set-bucket'
 const USAGE_GET_CHANNEL = 'usage:get'
+const CHARACTER_SIZE_GET_CHANNEL = 'character-size:get'
+const CHARACTER_SIZE_SET_CHANNEL = 'character-size:set'
+const CHARACTER_SIZE_SNAPSHOT_CHANNEL = 'character-size:snapshot'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const POSITION_SAVE_DELAY_MS = 250
+const RELEASES_URL = 'https://github.com/Hyunmin99/codemung/releases/latest'
 
-const COMPANION_WINDOW_SIZE = {
-  width: 280,
-  height: 280
+type CharacterSize = 'small' | 'medium' | 'large'
+const COMPANION_WINDOW_SIZES: Record<CharacterSize, { width: number; height: number }> = {
+  small: { width: 120, height: 136 },
+  medium: { width: 150, height: 170 },
+  large: { width: 180, height: 204 }
 }
-
+let characterSize: CharacterSize = 'medium'
 const SETTINGS_WINDOW_SIZE = {
-  width: 480,
-  height: 620
+  width: 460,
+  height: 320
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -86,9 +93,10 @@ function isValidBounds(value: unknown): value is Rectangle {
 }
 
 function clampToVisibleWorkArea(bounds: Rectangle): Rectangle {
+  const size = COMPANION_WINDOW_SIZES[characterSize]
   const workArea = screen.getDisplayMatching(bounds).workArea
-  const width = Math.min(COMPANION_WINDOW_SIZE.width, workArea.width)
-  const height = Math.min(COMPANION_WINDOW_SIZE.height, workArea.height)
+  const width = Math.min(size.width, workArea.width)
+  const height = Math.min(size.height, workArea.height)
 
   return {
     x: Math.min(Math.max(bounds.x, workArea.x), workArea.x + workArea.width - width),
@@ -103,11 +111,13 @@ function readSavedBounds(): Rectangle | null {
     const saved = JSON.parse(readFileSync(getWindowStatePath(), 'utf8')) as unknown
 
     if (!isValidBounds(saved)) return null
+    const savedSize = (saved as { characterSize?: unknown }).characterSize
+    if (savedSize === 'small' || savedSize === 'medium' || savedSize === 'large') characterSize = savedSize
 
     return clampToVisibleWorkArea({
       x: saved.x,
       y: saved.y,
-      ...COMPANION_WINDOW_SIZE
+      ...COMPANION_WINDOW_SIZES[characterSize]
     })
   } catch {
     return null
@@ -118,7 +128,7 @@ function saveMainWindowBounds(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
   try {
-    writeFileSync(getWindowStatePath(), JSON.stringify(mainWindow.getBounds()), 'utf8')
+    writeFileSync(getWindowStatePath(), JSON.stringify({ ...mainWindow.getBounds(), characterSize }), 'utf8')
   } catch {
     // A position persistence failure must not interrupt the companion.
   }
@@ -167,6 +177,23 @@ function loadRenderer(window: BrowserWindow, hash?: string): void {
   void window.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
 }
 
+function broadcastCharacterSize(): void {
+  for (const target of [mainWindow, settingsWindow]) {
+    if (target && !target.isDestroyed()) target.webContents.send(CHARACTER_SIZE_SNAPSHOT_CHANNEL, characterSize)
+  }
+}
+
+function resizeCompanion(size: CharacterSize): void {
+  characterSize = size
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const bounds = mainWindow.getBounds()
+    const next = clampToVisibleWorkArea({ ...bounds, ...COMPANION_WINDOW_SIZES[size] })
+    mainWindow.setBounds(next, false)
+    scheduleBoundsSave()
+  }
+  broadcastCharacterSize()
+}
+
 function createSettingsWindow(): BrowserWindow {
   const window = new BrowserWindow({
     ...SETTINGS_WINDOW_SIZE,
@@ -210,7 +237,7 @@ function buildCompanionContextMenu(): Menu {
     { label: '사용량', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
     { label: '설정…', click: openSettings },
     { type: 'separator' },
-    { label: '표시/숨기기', click: toggleWindow },
+    { label: '캐릭터 창 표시/숨기기', click: toggleWindow },
     { type: 'separator' },
     { label: '종료', click: quitApp }
   ])
@@ -219,7 +246,7 @@ function buildCompanionContextMenu(): Menu {
 function createWindow(): BrowserWindow {
   const savedBounds = readSavedBounds()
   const window = new BrowserWindow({
-    ...COMPANION_WINDOW_SIZE,
+    ...COMPANION_WINDOW_SIZES[characterSize],
     ...(savedBounds ? { x: savedBounds.x, y: savedBounds.y } : {}),
     show: false,
     frame: false,
@@ -297,11 +324,14 @@ if (hasSingleInstanceLock) {
       version: app.getVersion(),
       platform: process.platform
     }))
-    ipcMain.handle(ALWAYS_ON_TOP_CHANNEL, (_event, enabled: boolean) => {
-      if (!mainWindow || typeof enabled !== 'boolean') return false
-
-      mainWindow.setAlwaysOnTop(enabled, enabled ? 'floating' : 'normal')
-      return true
+    ipcMain.handle(OPEN_RELEASES_CHANNEL, async (event) => {
+      if (!isTrustedRenderer(event)) return false
+      try {
+        await shell.openExternal(RELEASES_URL)
+        return true
+      } catch {
+        return false
+      }
     })
     ipcMain.handle(USAGE_REFRESH_CHANNEL, async (event) => {
       if (!isTrustedRenderer(event)) return undefined
@@ -309,6 +339,10 @@ if (hasSingleInstanceLock) {
       return usageService.refresh()
     })
     ipcMain.handle(USAGE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? usageService?.getSnapshot() : undefined)
+    ipcMain.handle(CHARACTER_SIZE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? characterSize : undefined)
+    ipcMain.on(CHARACTER_SIZE_SET_CHANNEL, (event, value: unknown) => {
+      if (isTrustedRenderer(event) && (value === 'small' || value === 'medium' || value === 'large')) resizeCompanion(value)
+    })
     ipcMain.handle(USAGE_CONNECT_CLAUDE_CHANNEL, async (event) => isTrustedRenderer(event) ? usageService?.refresh({ allowKeychain: true }) : undefined)
     ipcMain.on(USAGE_CLOSE_CHANNEL, (event) => { if (isTrustedRenderer(event)) usageTray?.hide() })
     ipcMain.on(USAGE_BUCKET_CHANNEL, (event, id: unknown) => { if (isTrustedRenderer(event) && typeof id === 'string') usageTray?.setBucket(id) })
@@ -317,7 +351,11 @@ if (hasSingleInstanceLock) {
     ipcMain.on(QUIT_CHANNEL, (event) => { if (isTrustedRenderer(event)) quitApp() })
     mainWindow = createWindow()
     tray = createTray()
-    usageService = new UsageService((snapshot: UsageSnapshot) => usageTray?.updateTray(snapshot))
+    usageService = new UsageService((snapshot: UsageSnapshot) => {
+      usageTray?.updateTray(snapshot)
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(USAGE_SNAPSHOT_CHANNEL, snapshot)
+      if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send(USAGE_SNAPSHOT_CHANNEL, snapshot)
+    })
     usageTray = createUsageTrayController(tray, loadRenderer, () => undefined, (_source) => buildCompanionContextMenu().popup(), () => {
       const snapshot = usageService?.getSnapshot()
       if (!snapshot || [snapshot.codex, snapshot.claude].some((provider) => !provider.updatedAt || Date.now() - provider.updatedAt > 30_000)) void usageService?.refresh()
