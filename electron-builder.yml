@@ -1,0 +1,16 @@
+appId: com.hyunmin.codemung
+productName: CodeMung
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dir
+      arch: arm64
+  identity: null
+  extendInfo:
+    LSUIElement: true

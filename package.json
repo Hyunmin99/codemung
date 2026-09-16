@@ -10,7 +10,8 @@
     "build": "npm run typecheck && electron-vite build",
     "preview": "electron-vite preview",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dist": "npm run build && electron-builder --mac"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.4.0",
     "electron": "^35.2.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^3.1.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.0"
