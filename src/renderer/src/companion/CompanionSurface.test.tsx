@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSessionStore } from '../session/session-store'
 import { CompanionSurface } from './CompanionSurface'
@@ -17,6 +17,38 @@ function renderCompanion(sessions = [
 }
 
 describe('CompanionSurface', () => {
+  it.each([
+    ['idle', '쉬는 중'],
+    ['working', '작업 중'],
+    ['waiting_permission', '확인 필요'],
+    ['completed', '완료'],
+    ['error', '오류']
+  ] as const)('shows the %s representative state as a non-interactive label', (state, label) => {
+    const store = createSessionStore(state === 'idle' ? [] : [
+      { provider: 'codex', sessionId: 'x1', projectName: 'codemung', state, updatedAt: NOW }
+    ], () => NOW)
+    const { container } = render(<CompanionSurface store={store} onDrag={vi.fn()} />)
+
+    const status = screen.getByText(label)
+    expect(status).toHaveClass(`companion-state--${state}`)
+    expect(status).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('.companion')).toContainElement(status)
+    expect(status).toHaveClass('companion-state')
+  })
+
+  it('updates the visible state label when the session snapshot changes', () => {
+    const store = createSessionStore([], () => NOW)
+    render(<CompanionSurface store={store} onDrag={vi.fn()} />)
+
+    expect(screen.getByText('쉬는 중')).toBeInTheDocument()
+    act(() => {
+      store.replace([{ provider: 'claude', sessionId: 'c1', projectName: 'codemung', state: 'waiting_permission', updatedAt: NOW }])
+    })
+
+    expect(screen.getByText('확인 필요')).toBeInTheDocument()
+    expect(screen.queryByText('쉬는 중')).not.toBeInTheDocument()
+  })
+
   it('toggles the session list with a primary click on the visible companion', () => {
     renderCompanion()
 

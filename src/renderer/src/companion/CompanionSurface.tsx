@@ -6,6 +6,14 @@ import { MotionScene } from '../motion/MotionScene'
 
 const CLICK_DRAG_THRESHOLD_PX = 5
 
+const STATE_LABELS = {
+  idle: '쉬는 중',
+  working: '작업 중',
+  waiting_permission: '확인 필요',
+  completed: '완료',
+  error: '오류'
+} as const
+
 type SessionPanelStyle = CSSProperties & Record<
   '--session-panel-top' | '--session-panel-width' | '--session-panel-height',
   string
@@ -134,6 +142,9 @@ export function CompanionSurface({
       >
         <MotionScene pack={objectId} state={snapshot.representativeState} size={size} />
       </button>
+      <span className={`companion-state companion-state--${snapshot.representativeState}`} aria-hidden="true">
+        {STATE_LABELS[snapshot.representativeState]}
+      </span>
       {isPanelOpen && <ContextPanel snapshot={snapshot} onClose={() => updatePanelOpen(false)} />}
       <p className="sr-only" aria-live="polite">현재 대표 상태: {snapshot.representativeState}</p>
     </main>

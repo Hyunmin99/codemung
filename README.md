@@ -2,7 +2,7 @@
 
 > A cozy desktop companion for Claude Code and Codex.
 
-CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. The current prototype renders a state-aware lava animation in a transparent, draggable Electron window, with planned support for live Claude Code and Codex events.
+CodeMung is a small, always-on-top macOS companion that turns AI coding activity into a calm ambient scene. It currently detects recent Claude Code and Codex sessions from local session-log metadata and renders them in the companion.
 
 ## Project status
 
@@ -18,7 +18,7 @@ The current prototype includes:
 - Reduced-motion support based on the system accessibility preference
 - A security-conscious Electron setup with context isolation, sandboxing, and Node.js disabled in the renderer
 
-The Claude Code and Codex event bridge, session aggregation, hook installer, and live state updates are still planned. The prototype currently uses hard-coded agent states to demonstrate the motion system.
+The main process checks Claude Code and Codex session-log file metadata every two seconds and shows logs modified within the last five minutes. It does not read prompt or response content. Hook-based event updates and richer provider state mapping remain planned.
 
 ## Getting started
 
@@ -59,7 +59,9 @@ Authentication stays in the Electron main process. Tokens are not sent to the re
 
 ## How it is designed to work
 
-The completed MVP will normalize events from Claude Code and Codex into a shared state model:
+The current session feed polls local session-log metadata in the Electron main process every two seconds, then sends session snapshots through preload IPC to the renderer. Logs modified within the last five minutes are treated as working sessions. Codex project names come from the session metadata header; Claude project names come from the log's project directory. Prompt and response content is not read. Hook-based event normalization and richer state mapping remain planned.
+
+The planned hook event flow is:
 
 ```text
 Claude Code / Codex hooks
@@ -108,7 +110,7 @@ docs/
 
 ## Roadmap
 
-- Add a shared multi-session state store
+- Normalize hook events into richer live session states
 - Receive local events through an authenticated loopback server
 - Normalize real Claude Code and Codex hook payloads
 - Provide safe hook installation, backup, and removal tools

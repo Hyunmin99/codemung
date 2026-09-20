@@ -17,6 +17,8 @@ import type { UsageSnapshot } from '../shared/usage'
 import { createUsageTrayController, type UsageTrayController } from './usage-tray'
 import { compactBoundsForPersistence, expandedBoundsForSessionPanel, getExpandedCompanionWindowSize, isCompanionScreenPoint } from '../shared/companion-window'
 import { DEFAULT_OBJECT_ID, isRegisteredObjectId, type ObjectId } from '../shared/object'
+import type { SessionRecord } from '../shared/session'
+import { detectSessions, SESSION_POLL_INTERVAL_MS } from './session-detection'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const OPEN_RELEASES_CHANNEL = 'app:open-releases'
@@ -42,6 +44,8 @@ const COMPANION_PANEL_CHANNEL = 'companion:set-session-panel-open'
 const COMPANION_DRAG_START_CHANNEL = 'companion:drag-start'
 const COMPANION_DRAG_MOVE_CHANNEL = 'companion:drag-move'
 const COMPANION_DRAG_END_CHANNEL = 'companion:drag-end'
+const SESSION_GET_CHANNEL = 'session:get'
+const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const POSITION_SAVE_DELAY_MS = 250
 const RELEASES_URL = 'https://github.com/Hyunmin99/codemung/releases/latest'
@@ -64,6 +68,8 @@ let settingsWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let usageTray: UsageTrayController | null = null
 let usageService: UsageService | null = null
+let liveSessions: SessionRecord[] = []
+let sessionPollTimer: NodeJS.Timeout | null = null
 let isQuitting = false
 let positionSaveTimer: NodeJS.Timeout | null = null
 let isSessionPanelOpen = false
@@ -414,6 +420,7 @@ if (hasSingleInstanceLock) {
       return usageService.refresh()
     })
     ipcMain.handle(USAGE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? usageService?.getSnapshot() : undefined)
+    ipcMain.handle(SESSION_GET_CHANNEL, (event) => isTrustedRenderer(event) ? liveSessions : undefined)
     ipcMain.handle(OBJECT_SIZE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? objectSize : undefined)
     ipcMain.handle(OBJECT_ID_GET_CHANNEL, (event) => isTrustedRenderer(event) ? objectId : undefined)
     ipcMain.on(OBJECT_ID_SET_CHANNEL, (event, value: unknown) => {
@@ -448,8 +455,20 @@ if (hasSingleInstanceLock) {
       if (!snapshot || [snapshot.codex, snapshot.claude].some((provider) => !provider.updatedAt || Date.now() - provider.updatedAt > 30_000)) void usageService?.refresh()
     })
     usageService.start()
+    const refreshSessions = async (): Promise<void> => {
+      const sessions = await detectSessions()
+      liveSessions = sessions
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(SESSION_SNAPSHOT_CHANNEL, sessions)
+    }
+    void refreshSessions()
+    sessionPollTimer = setInterval(() => { void refreshSessions() }, SESSION_POLL_INTERVAL_MS)
     powerMonitor.on('suspend', () => usageService?.suspend())
     powerMonitor.on('resume', () => usageService?.resume())
-    app.on('before-quit', () => { usageService?.stop(); usageTray?.destroy() })
+    app.on('before-quit', () => {
+      if (sessionPollTimer) clearInterval(sessionPollTimer)
+      sessionPollTimer = null
+      usageService?.stop()
+      usageTray?.destroy()
+    })
   })
 }

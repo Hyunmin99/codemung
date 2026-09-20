@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { UsageSnapshot } from '../shared/usage'
 import { createCompanionDragStartPayload } from '../shared/companion-window'
 import type { ObjectId } from '../shared/object'
+import type { SessionRecord } from '../shared/session'
 type ObjectSize = 'small' | 'medium' | 'large'
 
 const APP_INFO_CHANNEL = 'app:get-info'
@@ -28,6 +29,8 @@ const COMPANION_PANEL_CHANNEL = 'companion:set-session-panel-open'
 const COMPANION_DRAG_START_CHANNEL = 'companion:drag-start'
 const COMPANION_DRAG_MOVE_CHANNEL = 'companion:drag-move'
 const COMPANION_DRAG_END_CHANNEL = 'companion:drag-end'
+const SESSION_GET_CHANNEL = 'session:get'
+const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
 
 export interface AppInfo {
   name: string
@@ -79,4 +82,10 @@ contextBridge.exposeInMainWorld('codemung', {
   ,startCompanionDrag: (screenX: number, screenY: number): void => ipcRenderer.send(COMPANION_DRAG_START_CHANNEL, createCompanionDragStartPayload(screenX, screenY))
   ,moveCompanion: (screenX: number, screenY: number): void => ipcRenderer.send(COMPANION_DRAG_MOVE_CHANNEL, { screenX, screenY })
   ,endCompanionDrag: (): void => ipcRenderer.send(COMPANION_DRAG_END_CHANNEL)
+  ,getSessions: (): Promise<SessionRecord[] | undefined> => ipcRenderer.invoke(SESSION_GET_CHANNEL)
+  ,onSessions: (listener: (sessions: SessionRecord[]) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, sessions: SessionRecord[]): void => listener(sessions)
+    ipcRenderer.on(SESSION_SNAPSHOT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(SESSION_SNAPSHOT_CHANNEL, handler)
+  }
 })

@@ -39,6 +39,8 @@ declare global {
     startCompanionDrag: (startScreenX: number, startScreenY: number) => void
     moveCompanion: (screenX: number, screenY: number) => void
     endCompanionDrag: () => void
+    getSessions: () => Promise<import('../shared/session').SessionRecord[] | undefined>
+    onSessions: (listener: (sessions: import('../shared/session').SessionRecord[]) => void) => () => void
   }
 
   interface Window {

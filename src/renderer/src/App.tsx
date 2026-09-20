@@ -173,8 +173,6 @@ function App(): React.JSX.Element {
   if (window.location.hash === '#usage') return <UsagePopover />
   const isSettingsWindow = window.location.hash === '#settings'
   const [appInfo, setAppInfo] = useState<CodeMungAppInfo | null>(null)
-  // Real provider events are not connected yet. Start empty so preview fixtures
-  // can never be mistaken for live Claude or Codex activity.
   const sessionStore = useMemo(() => createSessionStore([]), [])
   const [objectSize, setObjectSize] = useState<ObjectSize>('medium')
   const [objectId, setObjectId] = useState<ObjectId>(DEFAULT_OBJECT_ID)
@@ -182,6 +180,15 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (isSettingsWindow) void window.codemung?.getAppInfo().then(setAppInfo)
   }, [isSettingsWindow])
+
+  useEffect(() => {
+    if (isSettingsWindow) return
+    const unsubscribe = window.codemung?.onSessions((sessions) => sessionStore.replace(sessions))
+    void window.codemung?.getSessions().then((sessions) => {
+      if (sessions) sessionStore.replace(sessions)
+    })
+    return unsubscribe
+  }, [isSettingsWindow, sessionStore])
 
   useEffect(() => {
     const unsubscribe = subscribeObjectSize(setObjectSize)
