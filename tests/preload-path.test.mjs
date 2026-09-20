@@ -9,6 +9,8 @@ const compiledMainPath = join(repositoryRoot, 'out/main/index.js')
 const compiledPreloadPath = join(repositoryRoot, 'out/preload/index.cjs')
 const appSourcePath = join(repositoryRoot, 'src/renderer/src/App.tsx')
 const stylesSourcePath = join(repositoryRoot, 'src/renderer/src/styles.css')
+const companionSurfacePath = join(repositoryRoot, 'src/renderer/src/companion/CompanionSurface.tsx')
+const preloadSourcePath = join(repositoryRoot, 'src/preload/index.ts')
 
 test('compiled BrowserWindows load the emitted preload bundle', () => {
   assert.equal(existsSync(compiledPreloadPath), true, 'preload bundle must exist')
@@ -19,12 +21,19 @@ test('compiled BrowserWindows load the emitted preload bundle', () => {
   assert.doesNotMatch(compiledMain, /\.\.\/preload\/index\.(?:mjs|js)/)
 })
 
-test('companion uses Electron native draggable regions', () => {
+test('companion uses renderer pointer gestures with main-process drag IPC', () => {
   const appSource = readFileSync(appSourcePath, 'utf8')
   const stylesSource = readFileSync(stylesSourcePath, 'utf8')
+  const companionSurface = readFileSync(companionSurfacePath, 'utf8')
+  const preloadSource = readFileSync(preloadSourcePath, 'utf8')
   const companionRule = stylesSource.match(/\.companion\s*\{[^}]+\}/s)?.[0] ?? ''
+  const triggerRule = stylesSource.match(/\.companion-trigger\s*\{[^}]+\}/s)?.[0] ?? ''
 
-  assert.match(companionRule, /-webkit-app-region:\s*drag/)
-  assert.doesNotMatch(appSource, /onPointer(?:Down|Move|Up|Cancel)/)
-  assert.doesNotMatch(appSource, /(?:start|move|end)WindowDrag/)
+  assert.doesNotMatch(companionRule, /-webkit-app-region:\s*drag/)
+  assert.match(triggerRule, /-webkit-app-region:\s*no-drag/)
+  assert.match(companionSurface, /CLICK_DRAG_THRESHOLD_PX = 5/)
+  assert.match(companionSurface, /onPointer(?:Down|Move|Up|Cancel)/)
+  assert.match(appSource, /startCompanionDrag/)
+  assert.match(preloadSource, /companion:drag-start/)
+  assert.match(preloadSource, /companion:drag-move/)
 })

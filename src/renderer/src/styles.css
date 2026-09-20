@@ -12,16 +12,36 @@ html, body, #root { width: 100%; height: 100%; margin: 0; }
 body { overflow: hidden; user-select: none; }
 
 .companion {
-  display: grid;
+  position: relative;
   width: 100vw;
   height: 100vh;
-  place-items: center;
   overflow: hidden;
   background: transparent;
-  cursor: grab;
-  -webkit-app-region: drag;
-  app-region: drag;
 }
+
+.companion-trigger {
+  position: absolute;
+  /* Keep the object anchored to its compact-window center while Electron
+     grows the window for the session panel. Using 50% of the viewport here
+     makes it jump between the renderer update and the native resize. */
+  top: 85px;
+  left: 50%;
+  display: grid;
+  width: 150px;
+  height: 170px;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+  transform: translate(-50%, -50%);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.companion-trigger:active { cursor: grabbing; }
+.companion-trigger:focus-visible { outline: 2px solid rgba(255, 240, 77, .95); outline-offset: 3px; border-radius: 999px; }
+.companion-trigger[data-object-size='small'] { top: 68px; width: 120px; height: 136px; }
+.companion-trigger[data-object-size='large'] { top: 102px; width: 180px; height: 204px; }
 
 .motion-scene {
   display: grid;
@@ -30,11 +50,54 @@ body { overflow: hidden; user-select: none; }
   place-items: center;
   overflow: hidden;
   pointer-events: none;
-  -webkit-app-region: drag;
-  app-region: drag;
 }
-.motion-scene[data-character-size='small'] { width: 120px; height: 136px; }
-.motion-scene[data-character-size='large'] { width: 180px; height: 204px; }
+.motion-scene[data-object-size='small'] { width: 120px; height: 136px; }
+.motion-scene[data-object-size='large'] { width: 180px; height: 204px; }
+
+.context-panel {
+  position: absolute;
+  top: var(--session-panel-top);
+  left: 50%;
+  width: var(--session-panel-width);
+  height: var(--session-panel-height);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 14px;
+  color: #27272a;
+  background: rgba(255, 255, 255, .95);
+  border: 1px solid rgba(255, 255, 255, .75);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(54, 24, 10, .24), 0 2px 7px rgba(54, 24, 10, .12);
+  backdrop-filter: blur(18px);
+  transform: translateX(-50%);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.context-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 11px; }
+.context-panel-header span { display: block; color: #a1a1aa; font-size: 9px; font-weight: 750; letter-spacing: 1.2px; }
+.context-panel-header h1 { margin: 3px 0 0; font-size: 16px; letter-spacing: -.3px; }
+.context-close { display: grid; width: 26px; height: 26px; place-items: center; padding: 0; color: #71717a; background: #f4f4f5; border: 0; border-radius: 8px; font: inherit; font-size: 19px; line-height: 1; cursor: pointer; }
+.context-close:hover { color: #27272a; background: #e4e4e7; }
+.context-close:focus-visible, .context-provider-toggle:focus-visible { outline: 2px solid #fb923c; outline-offset: 2px; }
+.context-provider-list, .context-session-list { padding: 0; margin: 0; list-style: none; }
+.context-provider { overflow: hidden; background: rgba(250, 250, 250, .9); border: 1px solid #e4e4e7; border-radius: 10px; }
+.context-provider + .context-provider { margin-top: 7px; }
+.context-provider-toggle { display: flex; width: 100%; align-items: center; gap: 8px; padding: 9px; color: inherit; text-align: left; background: transparent; border: 0; font: inherit; cursor: pointer; }
+.context-provider-toggle:hover { background: #f4f4f5; }
+.context-provider-mark { display: block; width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 0 3px rgba(217, 119, 70, .12); }
+.context-provider-mark--claude { background: #d97746; }
+.context-provider-mark--codex { background: #27272a; box-shadow: 0 0 0 3px rgba(39, 39, 42, .1); }
+.context-provider-copy { min-width: 0; flex: 1; }
+.context-provider-copy strong, .context-provider-copy small { display: block; }
+.context-provider-copy strong { font-size: 12px; font-weight: 650; }
+.context-provider-copy small { margin-top: 2px; color: #71717a; font-size: 10px; }
+.context-disclosure { color: #a1a1aa; font-size: 16px; transform: rotate(0deg); }
+.context-provider-toggle[aria-expanded='true'] .context-disclosure { transform: rotate(180deg); }
+.context-session-list { padding: 0 9px 8px; border-top: 1px solid #e4e4e7; }
+.context-session-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 27px; color: #52525b; font-size: 11px; }
+.context-session-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.context-session-row small { flex: 0 0 auto; color: #a1a1aa; font-size: 9px; }
+.context-empty { margin: 32px 0; color: #71717a; text-align: center; font-size: 12px; }
 
 .settings-window {
   min-height: 100%;
@@ -65,6 +128,19 @@ body { overflow: hidden; user-select: none; }
 .settings-group { margin: 0 0 18px; -webkit-app-region: no-drag; app-region: no-drag; }
 .settings-group h2 { margin: 0 0 8px 4px; color: #71717a; font-size: 12px; font-weight: 600; letter-spacing: .01em; }
 .settings-group-content { overflow: hidden; background: rgba(255, 255, 255, 0.86); border: 1px solid rgba(24, 24, 27, 0.12); border-radius: 10px; box-shadow: 0 1px 2px rgba(0, 0, 0, .03); -webkit-app-region: no-drag; app-region: no-drag; }
+.object-picker { display: grid; gap: 7px; padding: 9px; }
+.object-option { display: flex; min-height: 72px; align-items: center; gap: 12px; padding: 7px 10px; color: #27272a; text-align: left; background: #fff; border: 1px solid rgba(24,24,27,.1); border-radius: 9px; cursor: pointer; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; -webkit-app-region: no-drag; app-region: no-drag; }
+.object-option:hover { background: #fafafa; border-color: rgba(24,24,27,.22); }
+.object-option[aria-checked='true'] { background: #fffdf1; border-color: rgba(183,149,0,.5); box-shadow: 0 0 0 2px rgba(240,207,53,.13); }
+.object-option:focus-visible { outline: 2px solid #a58100; outline-offset: 2px; }
+.object-option-preview { display: grid; width: 48px; height: 54px; flex: 0 0 auto; place-items: center; overflow: hidden; background: radial-gradient(ellipse at 50% 70%, #fff2bc, #fffaf0 67%, transparent 68%); border-radius: 8px; }
+.object-option-preview .motion-scene { width: 120px; height: 136px; transform: scale(.39); }
+.object-option-copy { min-width: 0; flex: 1; }
+.object-option-copy strong, .object-option-copy small { display: block; }
+.object-option-copy strong { font-size: 13px; font-weight: 600; }
+.object-option-copy small { margin-top: 3px; color: #71717a; font-size: 11px; }
+.object-option-check { display: grid; width: 18px; height: 18px; flex: 0 0 auto; place-items: center; color: #fff; background: transparent; border-radius: 50%; font-size: 12px; }
+.object-option[aria-checked='true'] .object-option-check { background: #a58100; }
 
 .setting-row {
   display: flex;

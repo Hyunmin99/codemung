@@ -64,10 +64,11 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
     '--motion-density': density,
     '--motion-turbulence': turbulence,
     '--lava-duration': `${(24 - speed * 10) / energy}s`,
-    '--lava-opacity': 0.72 + brightness * 0.26,
-    // 불 테마에 맞는 고채도. 상태 간 진폭은 36p로 약간 넓게 유지해
+    '--lava-opacity': 0.9 + brightness * 0.1,
+    // 작은 투명 창에서도 불빛이 흐려지지 않도록 기본 채도를 높인다.
+    // 상태 간 진폭은 남겨
     // waiting_permission/error가 묻히지 않게 한다.
-    '--lava-saturation': `${86 + brightness * 36}%`,
+    '--lava-saturation': `${118 + brightness * 42}%`,
     '--lava-secondary-scale': 0.72 + density * 0.34,
     // 세로 이동을 키워 부력 사이클이 읽히게. 가로는 sway 레이어와 나눠 가진다.
     '--lava-spread': `${12 + turbulence * 14}px`,
@@ -140,7 +141,7 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
           />
           {/* 적용 면적이 넓어진 만큼 농도는 낮춘다.
               multiply로 곱하는 색이라 밝을수록 덜 어두워지고 채도는 살아난다. */}
-          <feFlood floodColor="#b61000" floodOpacity={0.5 - brightness * 0.14} result="rim-color" />
+          <feFlood floodColor="#ef2100" floodOpacity={0.43 - brightness * 0.1} result="rim-color" />
           <feComposite in="rim-color" in2="rim-mask" operator="in" result="rim-glow" />
           <feComposite in="rim-glow" in2="joined-balls" operator="in" result="rim-clipped" />
           <feBlend in="joined-balls" in2="rim-clipped" mode="multiply" result="cooled" />
@@ -159,7 +160,7 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
                     0 0 0 3.2 -1.45"
             result="core-mask"
           />
-          <feFlood floodColor="#fff04d" floodOpacity={0.5 + brightness * 0.34} result="core-color" />
+          <feFlood floodColor="#fff64d" floodOpacity={0.62 + brightness * 0.3} result="core-color" />
           <feComposite in="core-color" in2="core-mask" operator="in" result="core-glow" />
           {/* 몸통 밖으로 새지 않게 자른다 — 알파가 몸통을 넘지 않아 헤일로가 안 생긴다. */}
           <feComposite in="core-glow" in2="cooled" operator="in" result="core-clipped" />

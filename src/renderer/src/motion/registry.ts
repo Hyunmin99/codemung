@@ -4,6 +4,7 @@ import type { MotionPackDefinition, MotionPackId } from './types'
 const lavaPack = {
   id: 'lava',
   label: '용암멍',
+  description: '따뜻하게 흐르는 용암 오브제',
   states: {
     idle: { speed: 0.18, brightness: 0.34, density: 0.24, turbulence: 0.12 },
     working: { speed: 0.68, brightness: 0.76, density: 0.7, turbulence: 0.58 },
@@ -14,7 +15,7 @@ const lavaPack = {
   Component: LavaMotion
 } satisfies MotionPackDefinition
 
-const motionPacks: Partial<Record<MotionPackId, MotionPackDefinition>> = {
+const motionPacks: Record<MotionPackId, MotionPackDefinition> = {
   lava: lavaPack
 }
 

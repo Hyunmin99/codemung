@@ -17,17 +17,17 @@
   이 그라데이션은 이제 "식은 가장자리" 색을 맡는다.
 */
 .lava-motion__stop--warm {
-  stop-color: #ffc94f;
+  stop-color: #ffe05a;
 }
 
 .lava-motion__stop--mid {
-  stop-color: #f4562a;
+  stop-color: #ff4f24;
 }
 
 /* 식어가는 쪽 끝. 명도는 낮게 두되 채도는 높게 — 어두우면서 채도까지
    낮으면 잿빛으로 탁해진다. 식은 용암은 검붉다. */
 .lava-motion__stop--deep {
-  stop-color: #b30f4b;
+  stop-color: #eb0752;
 }
 
 .lava-motion__field {
@@ -148,7 +148,7 @@
 }
 
 .lava-motion[data-state='idle'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(0.96) saturate(0.94);
+  filter: url("#lava-metaball") brightness(1.08) saturate(1.08);
 }
 
 .lava-motion[data-state='idle'] .lava-motion__blob--four,
@@ -158,7 +158,7 @@
 
 .lava-motion[data-state='working'] .lava-motion__field,
 .lava-motion[data-state='thinking'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(1.04) saturate(1.06);
+  filter: url("#lava-metaball") brightness(1.13) saturate(1.15);
 }
 
 .lava-motion[data-state='working'] .lava-motion__sheen,
@@ -168,7 +168,7 @@
 
 .lava-motion[data-state='waiting'] .lava-motion__field,
 .lava-motion[data-state='waiting_permission'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(0.94) saturate(0.86);
+  filter: url("#lava-metaball") brightness(1.08) saturate(1.06);
 }
 
 .lava-motion[data-state='waiting'] .lava-motion__sheen,
@@ -177,7 +177,7 @@
 }
 
 .lava-motion[data-state='error'] .lava-motion__field {
-  filter: url("#lava-metaball") hue-rotate(-9deg) saturate(0.86);
+  filter: url("#lava-metaball") brightness(1.07) hue-rotate(-9deg) saturate(1.08);
 }
 
 .lava-motion[data-state='error'] .lava-motion__blob--five {
@@ -189,7 +189,7 @@
 }
 
 .lava-motion[data-state='completed'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(1.09) saturate(1.04);
+  filter: url("#lava-metaball") brightness(1.16) saturate(1.14);
 }
 
 .lava-motion[data-state='completed'] .lava-motion__sheen {

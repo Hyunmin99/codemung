@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MotionScene } from './motion/MotionScene'
-import type { AgentState } from './motion/types'
+import { CompanionSurface } from './companion/CompanionSurface'
+import { createSessionStore } from './session/session-store'
 import { CLAUDE_ICON_PATH, CODEX_ICON_PATH } from '../../shared/provider-icons'
+import { DEFAULT_OBJECT_ID } from '../../shared/object'
+import { registeredMotionPacks } from './motion/registry'
+import { MotionScene } from './motion/MotionScene'
 
 function usageLabel(window: UsageWindow | null): string {
   if (!window) return '—'
@@ -63,59 +66,50 @@ function UsagePopover(): React.JSX.Element {
       <UsageBar label="주간" value={claude?.buckets[0]?.weekly ?? null} exhausted={claude?.buckets[0]?.weekly?.usedPercent === 100} reset={resetLabel(claude?.buckets[0]?.weekly?.resetsAt ?? null, clock)} />
       <small className="provider-updated">{claude?.updatedAt ? `업데이트 ${new Date(claude.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
     </section>
-    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => void window.codemung?.connectClaude()}>Claude 연결</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>캐릭터 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
+    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => void window.codemung?.connectClaude()}>Claude 연결</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>오브제 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
   </main>
-}
-
-type Agent = {
-  id: 'claude' | 'codex'
-  name: string
-  state: AgentState
-}
-
-const STATE_LABELS: Record<AgentState, string> = {
-  idle: '쉬는 중',
-  working: '작업 중',
-  waiting_permission: '확인 필요',
-  completed: '완료',
-  error: '오류'
-}
-const STATE_PRIORITY: Record<AgentState, number> = {
-  idle: 0,
-  working: 1,
-  completed: 2,
-  error: 3,
-  waiting_permission: 4
-}
-const INITIAL_AGENTS: Agent[] = [
-  { id: 'claude', name: 'Claude', state: 'idle' },
-  { id: 'codex', name: 'Codex', state: 'working' }
-]
-function getRepresentativeState(agents: readonly Agent[]): AgentState {
-  return agents.reduce<AgentState>(
-    (current, agent) =>
-      STATE_PRIORITY[agent.state] > STATE_PRIORITY[current] ? agent.state : current,
-    'idle'
-  )
 }
 
 interface SettingsScreenProps {
   appInfo: CodeMungAppInfo | null
 }
 
-const CHARACTER_SIZE_OPTIONS: Array<{ value: CharacterSize; label: string }> = [
+const OBJECT_SIZE_OPTIONS: Array<{ value: ObjectSize; label: string }> = [
   { value: 'small', label: '작게' },
   { value: 'medium', label: '보통' },
   { value: 'large', label: '크게' }
 ]
 
+function getObjectSizeApi(): (() => Promise<ObjectSize | undefined>) | undefined {
+  // Prefer the compatibility channel so a hot-reloaded preload can still talk
+  // to a main process from the previous build.
+  return window.codemung?.getCharacterSize ?? window.codemung?.getObjectSize
+}
+
+function subscribeObjectSize(listener: (size: ObjectSize) => void): (() => void) | undefined {
+  return (window.codemung?.onCharacterSize ?? window.codemung?.onObjectSize)?.(listener)
+}
+
+function updateObjectSize(size: ObjectSize): void {
+  const setter = window.codemung?.setCharacterSize ?? window.codemung?.setObjectSize
+  setter?.(size)
+}
+
+function subscribeObjectId(listener: (id: ObjectId) => void): (() => void) | undefined {
+  return window.codemung?.onObjectId?.(listener)
+}
+
 function SettingsScreen({
   appInfo
 }: SettingsScreenProps): React.JSX.Element {
-  const [characterSize, setCharacterSize] = useState<CharacterSize>('medium')
+  const [objectSize, setObjectSize] = useState<ObjectSize>('medium')
+  const [objectId, setObjectId] = useState<ObjectId>(DEFAULT_OBJECT_ID)
   useEffect(() => {
-    void window.codemung?.getCharacterSize().then((size) => { if (size) setCharacterSize(size) })
-    return window.codemung?.onCharacterSize((size) => setCharacterSize(size))
+    void getObjectSizeApi()?.().then((size) => { if (size) setObjectSize(size) })
+    const offSize = subscribeObjectSize(setObjectSize)
+    const offObject = subscribeObjectId(setObjectId)
+    void window.codemung?.getObjectId?.().then((id) => { if (id) setObjectId(id) })
+    return () => { offSize?.(); offObject?.() }
   }, [])
   return (
     <main className="settings-window" aria-label="CodeMung 설정">
@@ -124,19 +118,33 @@ function SettingsScreen({
         <p>{appInfo ? `버전 ${appInfo.version}` : 'CodeMung 환경설정'}</p>
       </header>
 
-      <section className="settings-group" aria-labelledby="character-size-heading">
-        <h2 id="character-size-heading">캐릭터</h2>
+      <section className="settings-group" aria-labelledby="object-size-heading">
+        <h2 id="object-size-heading">오브제</h2>
         <div className="settings-group-content">
+          <div className="object-picker" role="radiogroup" aria-label="오브제 종류">
+            {registeredMotionPacks.map((option) => <button
+              key={option.id}
+              type="button"
+              role="radio"
+              aria-checked={objectId === option.id}
+              className="object-option"
+              onClick={() => { setObjectId(option.id); window.codemung?.setObjectId?.(option.id) }}
+            >
+              <span className="object-option-preview" aria-hidden="true"><MotionScene pack={option.id} state="idle" size="small" /></span>
+              <span className="object-option-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
+              <span className="object-option-check" aria-hidden="true">{objectId === option.id ? '✓' : ''}</span>
+            </button>)}
+          </div>
           <div className="setting-row settings-size-row">
-            <span><strong>캐릭터 크기</strong><small>라바와 클릭 영역을 함께 조절합니다</small></span>
-            <div className="settings-segmented" role="radiogroup" aria-label="캐릭터 크기">
-              {CHARACTER_SIZE_OPTIONS.map((option) => <button
+            <span><strong>오브제 크기</strong><small>라바와 클릭 영역을 함께 조절합니다</small></span>
+            <div className="settings-segmented" role="radiogroup" aria-label="오브제 크기">
+              {OBJECT_SIZE_OPTIONS.map((option) => <button
                 key={option.value}
                 type="button"
                 role="radio"
-                aria-checked={characterSize === option.value}
+                aria-checked={objectSize === option.value}
                 className="settings-segment"
-                onClick={() => { setCharacterSize(option.value); window.codemung?.setCharacterSize(option.value) }}
+                onClick={() => { setObjectSize(option.value); updateObjectSize(option.value) }}
               >{option.label}</button>)}
             </div>
           </div>
@@ -165,29 +173,25 @@ function App(): React.JSX.Element {
   if (window.location.hash === '#usage') return <UsagePopover />
   const isSettingsWindow = window.location.hash === '#settings'
   const [appInfo, setAppInfo] = useState<CodeMungAppInfo | null>(null)
-  const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null)
-  const agents = useMemo(
-    () => snapshot
-      ? INITIAL_AGENTS.filter((agent) => ['ready', 'stale'].includes(snapshot[agent.id].status))
-      : [],
-    [snapshot]
-  )
-  const representativeState = getRepresentativeState(agents)
-  const [characterSize, setCharacterSize] = useState<CharacterSize>('medium')
+  // Real provider events are not connected yet. Start empty so preview fixtures
+  // can never be mistaken for live Claude or Codex activity.
+  const sessionStore = useMemo(() => createSessionStore([]), [])
+  const [objectSize, setObjectSize] = useState<ObjectSize>('medium')
+  const [objectId, setObjectId] = useState<ObjectId>(DEFAULT_OBJECT_ID)
 
   useEffect(() => {
     if (isSettingsWindow) void window.codemung?.getAppInfo().then(setAppInfo)
   }, [isSettingsWindow])
 
   useEffect(() => {
-    const unsubscribe = window.codemung?.onUsageSnapshot((next) => setSnapshot(next))
-    void window.codemung?.getUsageSnapshot().then((current) => { if (current) setSnapshot(current) })
+    const unsubscribe = subscribeObjectSize(setObjectSize)
+    void getObjectSizeApi()?.().then((size) => { if (size) setObjectSize(size) })
     return unsubscribe
   }, [])
 
   useEffect(() => {
-    const unsubscribe = window.codemung?.onCharacterSize((size) => setCharacterSize(size))
-    void window.codemung?.getCharacterSize().then((size) => { if (size) setCharacterSize(size) })
+    const unsubscribe = subscribeObjectId(setObjectId)
+    void window.codemung?.getObjectId?.().then((id) => { if (id) setObjectId(id) })
     return unsubscribe
   }, [])
 
@@ -196,10 +200,15 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <main className="companion" aria-label="코드멍 라바 모션">
-      <MotionScene pack="lava" state={representativeState} size={characterSize} />
-      <p className="sr-only" aria-live="polite">현재 대표 상태: {STATE_LABELS[representativeState]}</p>
-    </main>
+    <CompanionSurface
+      store={sessionStore}
+      size={objectSize}
+      objectId={objectId}
+      onPanelOpenChange={(isOpen) => window.codemung?.setSessionPanelOpen(isOpen)}
+      onDragStart={({ startScreenX, startScreenY }) => window.codemung?.startCompanionDrag(startScreenX, startScreenY)}
+      onDrag={({ screenX, screenY }) => window.codemung?.moveCompanion(screenX, screenY)}
+      onDragEnd={() => window.codemung?.endCompanionDrag()}
+    />
   )
 }
 

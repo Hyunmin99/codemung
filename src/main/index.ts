@@ -15,6 +15,8 @@ import { join } from 'node:path'
 import { UsageService } from './usage/service'
 import type { UsageSnapshot } from '../shared/usage'
 import { createUsageTrayController, type UsageTrayController } from './usage-tray'
+import { compactBoundsForPersistence, expandedBoundsForSessionPanel, getExpandedCompanionWindowSize, isCompanionScreenPoint } from '../shared/companion-window'
+import { DEFAULT_OBJECT_ID, isRegisteredObjectId, type ObjectId } from '../shared/object'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const OPEN_RELEASES_CHANNEL = 'app:open-releases'
@@ -27,23 +29,34 @@ const TOGGLE_COMPANION_CHANNEL = 'app:toggle-companion'
 const QUIT_CHANNEL = 'app:quit'
 const USAGE_BUCKET_CHANNEL = 'usage:set-bucket'
 const USAGE_GET_CHANNEL = 'usage:get'
-const CHARACTER_SIZE_GET_CHANNEL = 'character-size:get'
-const CHARACTER_SIZE_SET_CHANNEL = 'character-size:set'
-const CHARACTER_SIZE_SNAPSHOT_CHANNEL = 'character-size:snapshot'
+const OBJECT_SIZE_GET_CHANNEL = 'object-size:get'
+const OBJECT_SIZE_SET_CHANNEL = 'object-size:set'
+const OBJECT_SIZE_SNAPSHOT_CHANNEL = 'object-size:snapshot'
+const OBJECT_ID_GET_CHANNEL = 'object-id:get'
+const OBJECT_ID_SET_CHANNEL = 'object-id:set'
+const OBJECT_ID_SNAPSHOT_CHANNEL = 'object-id:snapshot'
+const LEGACY_SIZE_GET_CHANNEL = 'character-size:get'
+const LEGACY_SIZE_SET_CHANNEL = 'character-size:set'
+const LEGACY_SIZE_SNAPSHOT_CHANNEL = 'character-size:snapshot'
+const COMPANION_PANEL_CHANNEL = 'companion:set-session-panel-open'
+const COMPANION_DRAG_START_CHANNEL = 'companion:drag-start'
+const COMPANION_DRAG_MOVE_CHANNEL = 'companion:drag-move'
+const COMPANION_DRAG_END_CHANNEL = 'companion:drag-end'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const POSITION_SAVE_DELAY_MS = 250
 const RELEASES_URL = 'https://github.com/Hyunmin99/codemung/releases/latest'
 
-type CharacterSize = 'small' | 'medium' | 'large'
-const COMPANION_WINDOW_SIZES: Record<CharacterSize, { width: number; height: number }> = {
+type ObjectSize = 'small' | 'medium' | 'large'
+const COMPANION_WINDOW_SIZES: Record<ObjectSize, { width: number; height: number }> = {
   small: { width: 120, height: 136 },
   medium: { width: 150, height: 170 },
   large: { width: 180, height: 204 }
 }
-let characterSize: CharacterSize = 'medium'
+let objectSize: ObjectSize = 'medium'
+let objectId: ObjectId = DEFAULT_OBJECT_ID
 const SETTINGS_WINDOW_SIZE = {
   width: 460,
-  height: 320
+  height: 440
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -53,6 +66,8 @@ let usageTray: UsageTrayController | null = null
 let usageService: UsageService | null = null
 let isQuitting = false
 let positionSaveTimer: NodeJS.Timeout | null = null
+let isSessionPanelOpen = false
+let companionDrag: { origin: Rectangle; startScreenX: number; startScreenY: number } | null = null
 
 function isTrustedRenderer(event: Electron.IpcMainEvent | Electron.IpcMainInvokeEvent): boolean {
   const frameUrl = event.senderFrame?.url ?? ''
@@ -92,8 +107,13 @@ function isValidBounds(value: unknown): value is Rectangle {
   )
 }
 
-function clampToVisibleWorkArea(bounds: Rectangle): Rectangle {
-  const size = COMPANION_WINDOW_SIZES[characterSize]
+function currentCompanionWindowSize(): { width: number; height: number } {
+  return isSessionPanelOpen
+    ? getExpandedCompanionWindowSize(COMPANION_WINDOW_SIZES[objectSize]).window
+    : COMPANION_WINDOW_SIZES[objectSize]
+}
+
+function clampToVisibleWorkArea(bounds: Rectangle, size = currentCompanionWindowSize()): Rectangle {
   const workArea = screen.getDisplayMatching(bounds).workArea
   const width = Math.min(size.width, workArea.width)
   const height = Math.min(size.height, workArea.height)
@@ -106,18 +126,52 @@ function clampToVisibleWorkArea(bounds: Rectangle): Rectangle {
   }
 }
 
+function setSessionPanelOpen(isOpen: boolean): void {
+  if (!mainWindow || mainWindow.isDestroyed() || isSessionPanelOpen === isOpen) return
+  const bounds = mainWindow.getBounds()
+  const compactSize = COMPANION_WINDOW_SIZES[objectSize]
+  const nextBounds = isOpen
+    ? expandedBoundsForSessionPanel(bounds, getExpandedCompanionWindowSize(compactSize).window)
+    : compactBoundsForPersistence(bounds, compactSize)
+  isSessionPanelOpen = isOpen
+  companionDrag = null
+  mainWindow.setBounds(clampToVisibleWorkArea(nextBounds), false)
+  scheduleBoundsSave()
+}
+
+function startCompanionDrag(value: unknown): void {
+  if (!mainWindow || mainWindow.isDestroyed() || !isCompanionScreenPoint(value)) return
+  companionDrag = {
+    origin: mainWindow.getBounds(),
+    startScreenX: value.screenX,
+    startScreenY: value.screenY
+  }
+}
+
+function moveCompanion(value: unknown): void {
+  if (!mainWindow || mainWindow.isDestroyed() || !companionDrag || !isCompanionScreenPoint(value)) return
+  const { origin, startScreenX, startScreenY } = companionDrag
+  mainWindow.setBounds(clampToVisibleWorkArea({
+    ...origin,
+    x: Math.round(origin.x + value.screenX - startScreenX),
+    y: Math.round(origin.y + value.screenY - startScreenY)
+  }), false)
+}
+
 function readSavedBounds(): Rectangle | null {
   try {
     const saved = JSON.parse(readFileSync(getWindowStatePath(), 'utf8')) as unknown
 
     if (!isValidBounds(saved)) return null
-    const savedSize = (saved as { characterSize?: unknown }).characterSize
-    if (savedSize === 'small' || savedSize === 'medium' || savedSize === 'large') characterSize = savedSize
+    const savedValue = saved as { objectSize?: unknown; characterSize?: unknown; objectId?: unknown }
+    const savedSize = savedValue.objectSize ?? savedValue.characterSize
+    if (savedSize === 'small' || savedSize === 'medium' || savedSize === 'large') objectSize = savedSize
+    objectId = isRegisteredObjectId(savedValue.objectId) ? savedValue.objectId : DEFAULT_OBJECT_ID
 
     return clampToVisibleWorkArea({
       x: saved.x,
       y: saved.y,
-      ...COMPANION_WINDOW_SIZES[characterSize]
+      ...COMPANION_WINDOW_SIZES[objectSize]
     })
   } catch {
     return null
@@ -128,7 +182,8 @@ function saveMainWindowBounds(): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
   try {
-    writeFileSync(getWindowStatePath(), JSON.stringify({ ...mainWindow.getBounds(), characterSize }), 'utf8')
+    const compactBounds = compactBoundsForPersistence(mainWindow.getBounds(), COMPANION_WINDOW_SIZES[objectSize])
+    writeFileSync(getWindowStatePath(), JSON.stringify({ ...compactBounds, objectSize, objectId }), 'utf8')
   } catch {
     // A position persistence failure must not interrupt the companion.
   }
@@ -177,21 +232,39 @@ function loadRenderer(window: BrowserWindow, hash?: string): void {
   void window.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined)
 }
 
-function broadcastCharacterSize(): void {
+function broadcastObjectSize(): void {
   for (const target of [mainWindow, settingsWindow]) {
-    if (target && !target.isDestroyed()) target.webContents.send(CHARACTER_SIZE_SNAPSHOT_CHANNEL, characterSize)
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(OBJECT_SIZE_SNAPSHOT_CHANNEL, objectSize)
+      target.webContents.send(LEGACY_SIZE_SNAPSHOT_CHANNEL, objectSize)
+    }
   }
 }
 
-function resizeCompanion(size: CharacterSize): void {
-  characterSize = size
+function broadcastObjectId(): void {
+  for (const target of [mainWindow, settingsWindow]) {
+    if (target && !target.isDestroyed()) target.webContents.send(OBJECT_ID_SNAPSHOT_CHANNEL, objectId)
+  }
+}
+
+function selectObject(id: ObjectId): void {
+  objectId = id
+  saveMainWindowBounds()
+  broadcastObjectId()
+}
+
+function resizeCompanion(size: ObjectSize): void {
+  objectSize = size
   if (mainWindow && !mainWindow.isDestroyed()) {
     const bounds = mainWindow.getBounds()
-    const next = clampToVisibleWorkArea({ ...bounds, ...COMPANION_WINDOW_SIZES[size] })
+    const nextSize = isSessionPanelOpen
+      ? getExpandedCompanionWindowSize(COMPANION_WINDOW_SIZES[size]).window
+      : COMPANION_WINDOW_SIZES[size]
+    const next = clampToVisibleWorkArea({ ...bounds, ...nextSize }, nextSize)
     mainWindow.setBounds(next, false)
     scheduleBoundsSave()
   }
-  broadcastCharacterSize()
+  broadcastObjectSize()
 }
 
 function createSettingsWindow(): BrowserWindow {
@@ -237,7 +310,7 @@ function buildCompanionContextMenu(): Menu {
     { label: '사용량', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
     { label: '설정…', click: openSettings },
     { type: 'separator' },
-    { label: '캐릭터 창 표시/숨기기', click: toggleWindow },
+    { label: '오브제 창 표시/숨기기', click: toggleWindow },
     { type: 'separator' },
     { label: '종료', click: quitApp }
   ])
@@ -246,7 +319,7 @@ function buildCompanionContextMenu(): Menu {
 function createWindow(): BrowserWindow {
   const savedBounds = readSavedBounds()
   const window = new BrowserWindow({
-    ...COMPANION_WINDOW_SIZES[characterSize],
+    ...COMPANION_WINDOW_SIZES[objectSize],
     ...(savedBounds ? { x: savedBounds.x, y: savedBounds.y } : {}),
     show: false,
     frame: false,
@@ -279,6 +352,8 @@ function createWindow(): BrowserWindow {
   })
   window.on('closed', () => {
     mainWindow = null
+    isSessionPanelOpen = false
+    companionDrag = null
   })
   window.webContents.on('context-menu', (_event, params) => {
     buildCompanionContextMenu().popup({ window, x: params.x, y: params.y })
@@ -339,8 +414,16 @@ if (hasSingleInstanceLock) {
       return usageService.refresh()
     })
     ipcMain.handle(USAGE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? usageService?.getSnapshot() : undefined)
-    ipcMain.handle(CHARACTER_SIZE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? characterSize : undefined)
-    ipcMain.on(CHARACTER_SIZE_SET_CHANNEL, (event, value: unknown) => {
+    ipcMain.handle(OBJECT_SIZE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? objectSize : undefined)
+    ipcMain.handle(OBJECT_ID_GET_CHANNEL, (event) => isTrustedRenderer(event) ? objectId : undefined)
+    ipcMain.on(OBJECT_ID_SET_CHANNEL, (event, value: unknown) => {
+      if (isTrustedRenderer(event) && isRegisteredObjectId(value)) selectObject(value)
+    })
+    ipcMain.on(OBJECT_SIZE_SET_CHANNEL, (event, value: unknown) => {
+      if (isTrustedRenderer(event) && (value === 'small' || value === 'medium' || value === 'large')) resizeCompanion(value)
+    })
+    ipcMain.handle(LEGACY_SIZE_GET_CHANNEL, (event) => isTrustedRenderer(event) ? objectSize : undefined)
+    ipcMain.on(LEGACY_SIZE_SET_CHANNEL, (event, value: unknown) => {
       if (isTrustedRenderer(event) && (value === 'small' || value === 'medium' || value === 'large')) resizeCompanion(value)
     })
     ipcMain.handle(USAGE_CONNECT_CLAUDE_CHANNEL, async (event) => isTrustedRenderer(event) ? usageService?.refresh({ allowKeychain: true }) : undefined)
@@ -349,6 +432,10 @@ if (hasSingleInstanceLock) {
     ipcMain.on(OPEN_SETTINGS_CHANNEL, (event) => { if (isTrustedRenderer(event)) openSettings() })
     ipcMain.on(TOGGLE_COMPANION_CHANNEL, (event) => { if (isTrustedRenderer(event)) toggleWindow() })
     ipcMain.on(QUIT_CHANNEL, (event) => { if (isTrustedRenderer(event)) quitApp() })
+    ipcMain.on(COMPANION_PANEL_CHANNEL, (event, isOpen: unknown) => { if (isTrustedRenderer(event) && typeof isOpen === 'boolean') setSessionPanelOpen(isOpen) })
+    ipcMain.on(COMPANION_DRAG_START_CHANNEL, (event, value: unknown) => { if (isTrustedRenderer(event)) startCompanionDrag(value) })
+    ipcMain.on(COMPANION_DRAG_MOVE_CHANNEL, (event, value: unknown) => { if (isTrustedRenderer(event)) moveCompanion(value) })
+    ipcMain.on(COMPANION_DRAG_END_CHANNEL, (event) => { if (isTrustedRenderer(event)) companionDrag = null })
     mainWindow = createWindow()
     tray = createTray()
     usageService = new UsageService((snapshot: UsageSnapshot) => {

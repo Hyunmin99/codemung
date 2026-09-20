@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import type { ObjectId } from '../../../shared/object'
 
 export type AgentState =
   | 'idle'
@@ -7,7 +8,7 @@ export type AgentState =
   | 'completed'
   | 'error'
 
-export type MotionPackId = 'water' | 'fire' | 'lava'
+export type MotionPackId = ObjectId
 
 export interface MotionParams {
   speed: number
@@ -25,6 +26,7 @@ export interface MotionPackProps {
 export interface MotionPackDefinition {
   id: MotionPackId
   label: string
+  description: string
   states: Readonly<Record<AgentState, MotionParams>>
   Component: ComponentType<MotionPackProps>
 }

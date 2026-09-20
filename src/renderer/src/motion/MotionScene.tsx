@@ -5,7 +5,7 @@ import type { AgentState, MotionPackId, MotionParams } from './types'
 interface MotionSceneProps {
   pack: MotionPackId
   state: AgentState
-  size?: CharacterSize
+  size?: ObjectSize
 }
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
@@ -68,7 +68,7 @@ export function MotionScene({
       data-motion-pack={definition.id}
       data-motion-state={state}
       data-reduced-motion={effectiveReducedMotion ? 'true' : 'false'}
-      data-character-size={size}
+      data-object-size={size}
     >
       <PackComponent state={state} motion={motion} reducedMotion={effectiveReducedMotion} />
     </div>

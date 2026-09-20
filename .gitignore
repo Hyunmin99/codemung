@@ -8,3 +8,4 @@ out/
 npm-debug.log*
 
 dist
+release/
