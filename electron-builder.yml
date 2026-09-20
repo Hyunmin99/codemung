@@ -9,7 +9,7 @@ files:
 mac:
   category: public.app-category.developer-tools
   target:
-    - target: dir
+    - target: dmg
       arch: arm64
   identity: null
   extendInfo:
