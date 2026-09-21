@@ -6,6 +6,9 @@ directories:
 files:
   - out/**/*
   - package.json
+# `identity: null` skips signing, so scripts/after-pack.cjs applies an ad-hoc
+# signature. Without it macOS reports the app as damaged.
+afterPack: scripts/after-pack.cjs
 mac:
   category: public.app-category.developer-tools
   target:
