@@ -191,6 +191,13 @@ body { overflow: hidden; user-select: none; }
 .settings-update-button:hover { background: #3f3f46; }
 .settings-update-button:active { transform: translateY(1px); }
 .settings-update-button:focus-visible { outline: 2px solid #71717a; outline-offset: 2px; }
+.settings-connection-state { color: #71717a; font-size: 11px; }
+.settings-warning, .settings-inline-message { margin: 0; padding: 10px 14px; color: #92400e; font-size: 11px; line-height: 1.45; }
+.settings-inline-message { color: #52525b; }
+.settings-connection-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px; }
+.settings-connection-actions button { min-height: 30px; padding: 5px 11px; color: #27272a; background: #fff; border: 1px solid rgba(24,24,27,.14); border-radius: 7px; font: inherit; font-size: 12px; cursor: pointer; }
+.settings-connection-actions button:first-child { color: #fff; background: #18181b; border-color: #18181b; }
+.settings-connection-actions button:disabled { opacity: .5; cursor: default; }
 .settings-switch { position: relative; display: inline-flex; flex: 0 0 auto; width: 36px; height: 20px; align-items: center; padding: 2px; border: 0; border-radius: 999px; background: #d4d4d8; cursor: pointer; transition: background-color .15s ease; -webkit-app-region: no-drag; app-region: no-drag; }
 .settings-switch[aria-checked='true'] { background: #18181b; }
 .settings-switch-thumb { display: block; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18); transform: translateX(0); transition: transform .15s ease; }
@@ -268,6 +275,10 @@ body { overflow: hidden; user-select: none; }
   .setting-row select { color: #f5f5f7; background: #3a3a3c; border-color: rgba(235, 235, 245, 0.25); }
   .settings-update-button { color: #18181b; background: #f4f4f5; }
   .settings-update-button:hover { background: #d4d4d8; }
+  .settings-connection-state, .settings-inline-message { color: #a1a1aa; }
+  .settings-warning { color: #fbbf24; }
+  .settings-connection-actions button { color: #f4f4f5; background: #3a3a3c; border-color: rgba(235,235,245,.2); }
+  .settings-connection-actions button:first-child { color: #18181b; background: #f4f4f5; border-color: #f4f4f5; }
   .settings-segmented { background: #2c2c2e; border-color: rgba(235, 235, 245, 0.18); }
   .settings-segment[aria-checked='true'] { color: #18181b; background: #f4f4f5; }
   .usage-popover { --usage-bg: #09090b; --usage-card: #18181b; --usage-foreground: #f4f4f5; --usage-muted: #a1a1aa; --usage-subtle: #71717a; --usage-border: #27272a; --usage-track: #27272a; --usage-fill: #f4f4f5; }

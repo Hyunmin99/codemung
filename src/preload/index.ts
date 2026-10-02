@@ -31,6 +31,9 @@ const COMPANION_DRAG_MOVE_CHANNEL = 'companion:drag-move'
 const COMPANION_DRAG_END_CHANNEL = 'companion:drag-end'
 const SESSION_GET_CHANNEL = 'session:get'
 const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
+const CLAUDE_RELAY_STATUS_CHANNEL = 'usage:claude-relay-status'
+const CLAUDE_CONNECTION_STATUS_CHANNEL = 'usage:claude-connection-status'
+const CLAUDE_DISCONNECT_CHANNEL = 'usage:claude-disconnect'
 
 export interface AppInfo {
   name: string
@@ -67,7 +70,10 @@ contextBridge.exposeInMainWorld('codemung', {
     ipcRenderer.on(LEGACY_SIZE_SNAPSHOT_CHANNEL, handler)
     return () => ipcRenderer.removeListener(LEGACY_SIZE_SNAPSHOT_CHANNEL, handler)
   },
-  connectClaude: (): Promise<UsageSnapshot | undefined> => ipcRenderer.invoke(USAGE_CONNECT_CLAUDE_CHANNEL),
+  connectClaude: (): Promise<{ status: string; message?: string; snapshot?: UsageSnapshot } | undefined> => ipcRenderer.invoke(USAGE_CONNECT_CLAUDE_CHANNEL),
+  getClaudeRelayStatus: (): Promise<{ listening: boolean; lastStatus: string; receivedAt: number | null } | undefined> => ipcRenderer.invoke(CLAUDE_RELAY_STATUS_CHANNEL),
+  getClaudeConnectionStatus: (): Promise<{ statusLineInstalled: boolean; hooksInstalled: boolean; backupConflict: boolean; listener: { listening: boolean; lastStatus: string; receivedAt: number | null }; hookDiagnostics: { lastStatus: string; receivedAt: number | null } } | undefined> => ipcRenderer.invoke(CLAUDE_CONNECTION_STATUS_CHANNEL),
+  disconnectClaude: (): Promise<{ ok: boolean; message?: string } | undefined> => ipcRenderer.invoke(CLAUDE_DISCONNECT_CHANNEL),
   onUsageSnapshot: (listener: (snapshot: UsageSnapshot) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, snapshot: UsageSnapshot): void => listener(snapshot)
     ipcRenderer.on(USAGE_SNAPSHOT_CHANNEL, handler)

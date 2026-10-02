@@ -66,7 +66,7 @@ function UsagePopover(): React.JSX.Element {
       <UsageBar label="주간" value={claude?.buckets[0]?.weekly ?? null} exhausted={claude?.buckets[0]?.weekly?.usedPercent === 100} reset={resetLabel(claude?.buckets[0]?.weekly?.resetsAt ?? null, clock)} />
       <small className="provider-updated">{claude?.updatedAt ? `업데이트 ${new Date(claude.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
     </section>
-    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => void window.codemung?.connectClaude()}>Claude 연결</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>오브제 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
+    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => window.codemung?.openSettings()}>Claude 연결 설정</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>오브제 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
   </main>
 }
 
@@ -104,12 +104,18 @@ function SettingsScreen({
 }: SettingsScreenProps): React.JSX.Element {
   const [objectSize, setObjectSize] = useState<ObjectSize>('medium')
   const [objectId, setObjectId] = useState<ObjectId>(DEFAULT_OBJECT_ID)
+  const [claudeStatus, setClaudeStatus] = useState<Awaited<ReturnType<NonNullable<typeof window.codemung>['getClaudeConnectionStatus']>>>()
+  const [claudeMessage, setClaudeMessage] = useState('')
+  const [claudeBusy, setClaudeBusy] = useState(false)
+  const refreshClaudeStatus = () => void window.codemung?.getClaudeConnectionStatus().then(setClaudeStatus)
   useEffect(() => {
     void getObjectSizeApi()?.().then((size) => { if (size) setObjectSize(size) })
     const offSize = subscribeObjectSize(setObjectSize)
     const offObject = subscribeObjectId(setObjectId)
     void window.codemung?.getObjectId?.().then((id) => { if (id) setObjectId(id) })
-    return () => { offSize?.(); offObject?.() }
+    refreshClaudeStatus()
+    const timer = window.setInterval(refreshClaudeStatus, 2_000)
+    return () => { offSize?.(); offObject?.(); window.clearInterval(timer) }
   }, [])
   return (
     <main className="settings-window" aria-label="CodeMung 설정">
@@ -148,6 +154,19 @@ function SettingsScreen({
               >{option.label}</button>)}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="settings-group" aria-labelledby="claude-heading">
+        <h2 id="claude-heading">Claude 연결</h2>
+        <div className="settings-group-content">
+          <div className="setting-row"><span><strong>사용량 연결</strong><small>{claudeStatus?.statusLineInstalled ? 'status line relay 설치됨' : 'status line relay 미설치'}</small></span><span className="settings-connection-state">{claudeStatus?.statusLineInstalled ? '연결됨' : '미연결'}</span></div>
+          <div className="setting-row"><span><strong>세션 상태 연결</strong><small>{claudeStatus?.hooksInstalled ? 'Claude hook 설치됨' : 'Claude hook 미설치'}</small></span><span className="settings-connection-state">{claudeStatus?.hooksInstalled ? '연결됨' : '미연결'}</span></div>
+          <div className="setting-row"><span><strong>로컬 수신기</strong><small>{claudeStatus?.listener.listening ? '127.0.0.1에서 대기 중' : '수신기를 사용할 수 없음'}</small></span><small>{claudeStatus?.listener.receivedAt ? `사용량 ${new Date(claudeStatus.listener.receivedAt).toLocaleTimeString()}` : '사용량 수신 기록 없음'}</small></div>
+          <div className="setting-row"><span><strong>세션 훅 수신</strong><small>작업·대기·완료 상태 이벤트</small></span><small>{claudeStatus?.hookDiagnostics.receivedAt ? new Date(claudeStatus.hookDiagnostics.receivedAt).toLocaleTimeString() : '수신 기록 없음'}</small></div>
+          {claudeStatus?.backupConflict && <p className="settings-warning">기존 status line 백업 파일이 남아 있지만 현재 CodeMung 연결은 확인되지 않습니다. 자동으로 덮어쓰거나 삭제하지 않았습니다. Claude 설정을 확인하고 백업 파일을 직접 정리한 뒤 다시 연결해 주세요.</p>}
+          {claudeMessage && <p className="settings-inline-message">{claudeMessage}</p>}
+          <div className="settings-connection-actions"><button type="button" disabled={claudeBusy} onClick={() => { setClaudeBusy(true); setClaudeMessage(''); void window.codemung?.connectClaude().then((result) => { setClaudeMessage(result?.message ?? '사용량과 세션 상태 연결을 설치했습니다. Claude를 실행하면 값이 들어옵니다.'); refreshClaudeStatus() }).finally(() => setClaudeBusy(false)) }}>{claudeStatus?.statusLineInstalled || claudeStatus?.hooksInstalled ? '다시 연결' : '연결'}</button><button type="button" disabled={claudeBusy || (!claudeStatus?.statusLineInstalled && !claudeStatus?.hooksInstalled)} onClick={() => { setClaudeBusy(true); setClaudeMessage(''); void window.codemung?.disconnectClaude().then((result) => { setClaudeMessage(result?.message ?? 'Claude 연결을 해제했습니다.'); refreshClaudeStatus() }).finally(() => setClaudeBusy(false)) }}>연결 해제</button></div>
         </div>
       </section>
 

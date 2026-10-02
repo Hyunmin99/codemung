@@ -19,6 +19,9 @@ import { compactBoundsForPersistence, expandedBoundsForSessionPanel, getExpanded
 import { DEFAULT_OBJECT_ID, isRegisteredObjectId, type ObjectId } from '../shared/object'
 import type { SessionRecord } from '../shared/session'
 import { detectSessions, SESSION_POLL_INTERVAL_MS } from './session-detection'
+import { startClaudeUsageRelay, stopClaudeUsageRelay, getClaudeRelaySnapshot, setClaudeRelayUpdateListener } from './usage/claude-relay'
+import { getClaudeConnectionStatus, installClaudeStatusLine, removeClaudeStatusLine } from './usage/claude-statusline-installer'
+import { mergeClaudeHookSessions } from './session-hooks'
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const OPEN_RELEASES_CHANNEL = 'app:open-releases'
@@ -46,6 +49,9 @@ const COMPANION_DRAG_MOVE_CHANNEL = 'companion:drag-move'
 const COMPANION_DRAG_END_CHANNEL = 'companion:drag-end'
 const SESSION_GET_CHANNEL = 'session:get'
 const SESSION_SNAPSHOT_CHANNEL = 'session:snapshot'
+const CLAUDE_RELAY_STATUS_CHANNEL = 'usage:claude-relay-status'
+const CLAUDE_CONNECTION_STATUS_CHANNEL = 'usage:claude-connection-status'
+const CLAUDE_DISCONNECT_CHANNEL = 'usage:claude-disconnect'
 const WINDOW_STATE_FILENAME = 'companion-window-state.json'
 const POSITION_SAVE_DELAY_MS = 250
 const RELEASES_URL = 'https://github.com/Hyunmin99/codemung/releases/latest'
@@ -433,7 +439,22 @@ if (hasSingleInstanceLock) {
     ipcMain.on(LEGACY_SIZE_SET_CHANNEL, (event, value: unknown) => {
       if (isTrustedRenderer(event) && (value === 'small' || value === 'medium' || value === 'large')) resizeCompanion(value)
     })
-    ipcMain.handle(USAGE_CONNECT_CLAUDE_CHANNEL, async (event) => isTrustedRenderer(event) ? usageService?.refresh({ allowKeychain: true }) : undefined)
+    ipcMain.handle(USAGE_CONNECT_CLAUDE_CHANNEL, async (event) => {
+      if (!isTrustedRenderer(event)) return undefined
+      const install = await installClaudeStatusLine()
+      const snapshot = await usageService?.refresh({ allowKeychain: true })
+      return { status: install.status, message: install.ok ? undefined : install.message ?? 'Claude 연결 설정을 설치하지 못했습니다.', snapshot }
+    })
+    ipcMain.handle(CLAUDE_RELAY_STATUS_CHANNEL, (event) => isTrustedRenderer(event) ? getClaudeRelaySnapshot().diagnostics : undefined)
+    ipcMain.handle(CLAUDE_CONNECTION_STATUS_CHANNEL, async (event) => {
+      if (!isTrustedRenderer(event)) return undefined
+      const relay = getClaudeRelaySnapshot()
+      return { ...await getClaudeConnectionStatus(), listener: relay.diagnostics, hookDiagnostics: relay.hookDiagnostics }
+    })
+    ipcMain.handle(CLAUDE_DISCONNECT_CHANNEL, async (event) => {
+      if (!isTrustedRenderer(event)) return undefined
+      return removeClaudeStatusLine()
+    })
     ipcMain.on(USAGE_CLOSE_CHANNEL, (event) => { if (isTrustedRenderer(event)) usageTray?.hide() })
     ipcMain.on(USAGE_BUCKET_CHANNEL, (event, id: unknown) => { if (isTrustedRenderer(event) && typeof id === 'string') usageTray?.setBucket(id) })
     ipcMain.on(OPEN_SETTINGS_CHANNEL, (event) => { if (isTrustedRenderer(event)) openSettings() })
@@ -444,19 +465,21 @@ if (hasSingleInstanceLock) {
     ipcMain.on(COMPANION_DRAG_MOVE_CHANNEL, (event, value: unknown) => { if (isTrustedRenderer(event)) moveCompanion(value) })
     ipcMain.on(COMPANION_DRAG_END_CHANNEL, (event) => { if (isTrustedRenderer(event)) companionDrag = null })
     mainWindow = createWindow()
+    void startClaudeUsageRelay()
     tray = createTray()
     usageService = new UsageService((snapshot: UsageSnapshot) => {
       usageTray?.updateTray(snapshot)
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(USAGE_SNAPSHOT_CHANNEL, snapshot)
       if (settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.webContents.send(USAGE_SNAPSHOT_CHANNEL, snapshot)
     })
+    setClaudeRelayUpdateListener(() => { void usageService?.refresh() })
     usageTray = createUsageTrayController(tray, loadRenderer, () => undefined, (_source) => buildCompanionContextMenu().popup(), () => {
       const snapshot = usageService?.getSnapshot()
       if (!snapshot || [snapshot.codex, snapshot.claude].some((provider) => !provider.updatedAt || Date.now() - provider.updatedAt > 30_000)) void usageService?.refresh()
     })
     usageService.start()
     const refreshSessions = async (): Promise<void> => {
-      const sessions = await detectSessions()
+      const sessions = mergeClaudeHookSessions(await detectSessions())
       liveSessions = sessions
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(SESSION_SNAPSHOT_CHANNEL, sessions)
     }
@@ -468,6 +491,8 @@ if (hasSingleInstanceLock) {
       if (sessionPollTimer) clearInterval(sessionPollTimer)
       sessionPollTimer = null
       usageService?.stop()
+      setClaudeRelayUpdateListener(null)
+      stopClaudeUsageRelay()
       usageTray?.destroy()
     })
   })

@@ -28,7 +28,10 @@ declare global {
     setCharacterSize?: (size: ObjectSize) => void
     /** @deprecated Compatibility for renderer hot reloads from older builds. */
     onCharacterSize?: (listener: (size: ObjectSize) => void) => () => void
-    connectClaude: () => Promise<UsageSnapshot | undefined>
+    connectClaude: () => Promise<{ status: string; message?: string; snapshot?: UsageSnapshot } | undefined>
+    getClaudeRelayStatus: () => Promise<{ listening: boolean; lastStatus: string; receivedAt: number | null } | undefined>
+    getClaudeConnectionStatus: () => Promise<{ statusLineInstalled: boolean; hooksInstalled: boolean; backupConflict: boolean; listener: { listening: boolean; lastStatus: string; receivedAt: number | null }; hookDiagnostics: { lastStatus: string; receivedAt: number | null } } | undefined>
+    disconnectClaude: () => Promise<{ ok: boolean; message?: string } | undefined>
     onUsageSnapshot: (listener: (snapshot: UsageSnapshot) => void) => () => void
     closeUsage: () => void
     setUsageBucket: (id: string) => void

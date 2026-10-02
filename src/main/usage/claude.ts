@@ -2,6 +2,7 @@ import { execFile as nodeExecFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { readFile } from 'node:fs/promises'
 import type { ProviderUsage, UsageBucket, UsageWindow } from '../../shared/usage'
+import { getClaudeRelaySnapshot } from './claude-relay.ts'
 
 type ClaudeDeps = { readFile?: typeof readFile; execFile?: typeof nodeExecFile; fetch?: typeof globalThis.fetch; home?: () => string; timeoutMs?: number }
 type Credential = { token: string; source: 'file' | 'keychain'; expiresAt: number | null }
@@ -49,6 +50,8 @@ export class ClaudeUsageAdapter {
   private controller: AbortController | null = null
   constructor(deps: ClaudeDeps = {}) { this.deps = deps }
   async fetch(options: { allowKeychain?: boolean } = {}): Promise<ProviderUsage> {
+    const { windows: relay, diagnostics } = getClaudeRelaySnapshot()
+    if (relay.fiveHour || relay.weekly) return { provider: 'claude', status: 'ready', buckets: [{ id: 'status-line', label: 'Claude', fiveHour: relay.fiveHour, weekly: relay.weekly }], updatedAt: diagnostics.receivedAt }
     const previous = this.cached
     if (options.allowKeychain === true) this.cached = null
     const controller = new AbortController(); this.controller = controller
