@@ -368,7 +368,10 @@ function createWindow(): BrowserWindow {
   })
 
   window.setAlwaysOnTop(true, 'floating')
-  window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false })
+  window.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: false,
+    skipTransformProcessType: process.platform === 'darwin'
+  })
   window.on('move', scheduleBoundsSave)
   window.on('close', (event) => {
     saveMainWindowBounds()
