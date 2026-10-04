@@ -318,9 +318,25 @@ function openSettings(): void {
 }
 
 function buildCompanionContextMenu(): Menu {
+  const supportsLoginItems = process.platform === 'darwin' || process.platform === 'win32'
+  const openAtLogin = supportsLoginItems && app.isPackaged && app.getLoginItemSettings().openAtLogin
   return Menu.buildFromTemplate([
     { label: '사용량', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
     { label: '설정…', click: openSettings },
+    {
+      label: '로그인 시 자동 실행',
+      type: 'checkbox',
+      checked: openAtLogin,
+      enabled: supportsLoginItems && app.isPackaged,
+      click: (item) => {
+        try {
+          app.setLoginItemSettings({ openAtLogin: item.checked })
+        } catch (error) {
+          item.checked = app.getLoginItemSettings().openAtLogin
+          console.error('로그인 항목 설정 실패:', error)
+        }
+      }
+    },
     { type: 'separator' },
     { label: '오브제 창 표시/숨기기', click: toggleWindow },
     { type: 'separator' },
@@ -404,6 +420,7 @@ if (hasSingleInstanceLock) {
   void app.whenReady().then(() => {
     if (process.platform === 'darwin') {
       app.setActivationPolicy('accessory')
+      app.dock?.hide()
     }
 
     ipcMain.handle(APP_INFO_CHANNEL, () => ({

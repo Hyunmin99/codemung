@@ -38,6 +38,8 @@ npm run dev
 
 The companion appears as a small floating window. Drag anywhere inside the window to reposition it. Click either provider's menu bar item to inspect usage. The popover and right-click menu provide companion visibility, settings, and quit actions.
 
+On macOS, CodeMung hides its Dock icon. In a packaged macOS or Windows build, enable **로그인 시 자동 실행** from the companion's right-click menu to launch it when you sign in; this option is disabled in development builds.
+
 ### Subscription usage
 
 Sign in with the installed Codex and Claude Code CLIs. CodeMung displays the **percentage used**, not the percentage remaining. It reads server quota rather than estimating it from local token logs.
