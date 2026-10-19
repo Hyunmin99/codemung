@@ -1,10 +1,24 @@
 import { open, readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, join } from 'node:path'
-import type { Provider, SessionRecord } from '../shared/session'
+import type { AgentState, Provider, SessionRecord } from '../shared/session'
 
 const RECENT_MS = 5 * 60_000
 const MAX_SESSIONS_PER_PROVIDER = 100
+const CODEX_TAIL_BYTES = 512 * 1024
+
+const CODEX_STATE_BY_EVENT: Readonly<Record<string, AgentState>> = {
+  task_started: 'working',
+  task_complete: 'completed',
+  turn_aborted: 'idle',
+  exec_approval_request: 'waiting_permission',
+  approval_request: 'waiting_permission',
+  approval_requested: 'waiting_permission',
+  tool_approval_requested: 'waiting_permission',
+  turn_failed: 'error',
+  task_failed: 'error',
+  response_failed: 'error'
+}
 
 interface SessionFile {
   provider: Provider
@@ -88,6 +102,32 @@ async function codexProjectName(path: string): Promise<string> {
   return 'Codex session'
 }
 
+/** Reads only the outer record type and event subtype; message/tool bodies are never parsed. */
+async function codexState(path: string): Promise<AgentState> {
+  let handle
+  try {
+    handle = await open(path, 'r')
+    const { size } = await handle.stat()
+    const length = Math.min(size, CODEX_TAIL_BYTES)
+    const bytes = Buffer.alloc(length)
+    await handle.read(bytes, 0, length, size - length)
+    const lines = bytes.toString('utf8').split('\n')
+    let state: AgentState | undefined
+    for (const line of lines) {
+      // Top-level type precedes nested payloads in Codex rollout records.
+      const recordType = line.match(/^\s*\{[^{}]*?"type"\s*:\s*"([^"]+)"/)?.[1]
+      if (recordType !== 'event_msg') continue
+      const eventType = line.match(/"payload"\s*:\s*\{\s*"type"\s*:\s*"([^"]+)"/)?.[1]
+      if (eventType && CODEX_STATE_BY_EVENT[eventType]) state = CODEX_STATE_BY_EVENT[eventType]
+    }
+    return state ?? 'working'
+  } catch {
+    return 'working'
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
 export async function detectSessions(now = Date.now(), home = homedir()): Promise<SessionRecord[]> {
   const claudeRoot = join(home, '.claude', 'projects')
   const codexRoot = join(home, '.codex', 'sessions')
@@ -100,7 +140,9 @@ export async function detectSessions(now = Date.now(), home = homedir()): Promis
       const info = await stat(file.path)
       const age = now - info.mtimeMs
       if (age < 0 || age > RECENT_MS) return null
-      return { file, updatedAt: info.mtimeMs, state: 'working' as const }
+      const state = file.provider === 'codex' ? await codexState(file.path) : 'working'
+      if (state === 'idle') return null
+      return { file, updatedAt: info.mtimeMs, state }
     } catch { return null }
   }))
   const detected = recent.filter((value): value is NonNullable<typeof value> => value !== null)

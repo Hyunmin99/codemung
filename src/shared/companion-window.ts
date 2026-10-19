@@ -16,8 +16,8 @@ export interface CompanionSize {
 }
 
 export const SESSION_PANEL_LAYOUT = Object.freeze({
-  panelWidth: 280,
-  panelHeight: 220,
+  panelWidth: 320,
+  panelHeight: 280,
   gap: 10,
   horizontalInset: 12,
   bottomInset: 12

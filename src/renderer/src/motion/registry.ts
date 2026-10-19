@@ -8,9 +8,9 @@ const lavaPack = {
   states: {
     idle: { speed: 0.18, brightness: 0.34, density: 0.24, turbulence: 0.12 },
     working: { speed: 0.68, brightness: 0.76, density: 0.7, turbulence: 0.58 },
-    waiting_permission: { speed: 0.34, brightness: 0.94, density: 0.54, turbulence: 0.76 },
-    completed: { speed: 0.62, brightness: 1, density: 0.86, turbulence: 0.38 },
-    error: { speed: 0.28, brightness: 0.5, density: 0.4, turbulence: 0.96 }
+    waiting_permission: { speed: 0.92, brightness: 0.94, density: 0.54, turbulence: 0.76 },
+    completed: { speed: 0.08, brightness: 0.12, density: 0.5, turbulence: 0.08 },
+    error: { speed: 0.58, brightness: 0.65, density: 0.55, turbulence: 0.82 }
   },
   Component: LavaMotion
 } satisfies MotionPackDefinition

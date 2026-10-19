@@ -4,6 +4,7 @@ import {
   ipcMain,
   Menu,
   nativeImage,
+  nativeTheme,
   powerMonitor,
   screen,
   shell,
@@ -22,6 +23,8 @@ import { detectSessions, SESSION_POLL_INTERVAL_MS } from './session-detection'
 import { startClaudeUsageRelay, stopClaudeUsageRelay, getClaudeRelaySnapshot, setClaudeRelayUpdateListener } from './usage/claude-relay'
 import { getClaudeConnectionStatus, installClaudeStatusLine, removeClaudeStatusLine } from './usage/claude-statusline-installer'
 import { mergeClaudeHookSessions } from './session-hooks'
+
+app.setName('CodeMung')
 
 const APP_INFO_CHANNEL = 'app:get-info'
 const OPEN_RELEASES_CHANNEL = 'app:open-releases'
@@ -65,8 +68,8 @@ const COMPANION_WINDOW_SIZES: Record<ObjectSize, { width: number; height: number
 let objectSize: ObjectSize = 'medium'
 let objectId: ObjectId = DEFAULT_OBJECT_ID
 const SETTINGS_WINDOW_SIZE = {
-  width: 460,
-  height: 440
+  width: 560,
+  height: 510
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -284,12 +287,13 @@ function createSettingsWindow(): BrowserWindow {
     ...SETTINGS_WINDOW_SIZE,
     show: false,
     title: 'CodeMung 설정',
-    backgroundColor: '#f5f5f7',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#242426' : '#f5f5f7',
     resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...(process.platform === 'darwin' ? { trafficLightPosition: { x: 14, y: 13 } } : {}),
     webPreferences: {
         preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -298,7 +302,12 @@ function createSettingsWindow(): BrowserWindow {
     }
   })
 
+  const syncAppearance = (): void => {
+    if (!window.isDestroyed()) window.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#242426' : '#f5f5f7')
+  }
+  nativeTheme.on('updated', syncAppearance)
   window.on('closed', () => {
+    nativeTheme.removeListener('updated', syncAppearance)
     settingsWindow = null
   })
   window.once('ready-to-show', () => window.show())
@@ -308,6 +317,7 @@ function createSettingsWindow(): BrowserWindow {
 }
 
 function openSettings(): void {
+  usageTray?.hide()
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     settingsWindow.show()
     settingsWindow.focus()
@@ -321,10 +331,10 @@ function buildCompanionContextMenu(): Menu {
   const supportsLoginItems = process.platform === 'darwin' || process.platform === 'win32'
   const openAtLogin = supportsLoginItems && app.isPackaged && app.getLoginItemSettings().openAtLogin
   return Menu.buildFromTemplate([
-    { label: '사용량', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
-    { label: '설정…', click: openSettings },
+    { label: '사용량 보기', click: () => { const snapshot = usageService?.getSnapshot(); if (snapshot) usageTray?.show(snapshot) } },
+    { label: '설정…', accelerator: 'CommandOrControl+,', click: openSettings },
     {
-      label: '로그인 시 자동 실행',
+      label: '로그인 시 열기',
       type: 'checkbox',
       checked: openAtLogin,
       enabled: supportsLoginItems && app.isPackaged,
@@ -338,9 +348,9 @@ function buildCompanionContextMenu(): Menu {
       }
     },
     { type: 'separator' },
-    { label: '오브제 창 표시/숨기기', click: toggleWindow },
+    { label: mainWindow?.isVisible() ? '오브제 숨기기' : '오브제 보기', click: toggleWindow },
     { type: 'separator' },
-    { label: '종료', click: quitApp }
+    { label: 'CodeMung 종료', accelerator: 'CommandOrControl+Q', click: quitApp }
   ])
 }
 
@@ -425,6 +435,29 @@ if (hasSingleInstanceLock) {
       app.setActivationPolicy('accessory')
       app.dock?.hide()
     }
+
+    Menu.setApplicationMenu(Menu.buildFromTemplate([
+      {
+        label: 'CodeMung',
+        submenu: [
+          { label: 'CodeMung 정보', role: 'about' },
+          { type: 'separator' },
+          { label: '설정…', accelerator: 'CommandOrControl+,', click: openSettings },
+          { type: 'separator' },
+          ...(process.platform === 'darwin' ? [
+            { role: 'services' as const, label: '서비스' },
+            { type: 'separator' as const },
+            { role: 'hide' as const, label: 'CodeMung 숨기기' },
+            { role: 'hideOthers' as const, label: '기타 가리기' },
+            { role: 'unhide' as const, label: '모두 보기' },
+            { type: 'separator' as const }
+          ] : []),
+          { label: 'CodeMung 종료', accelerator: 'CommandOrControl+Q', click: quitApp }
+        ]
+      },
+      { role: 'editMenu', label: '편집' },
+      { label: '윈도우', submenu: [{ role: 'close', label: '닫기' }, { type: 'separator' }, { label: '오브제 보기', click: showWindow }] }
+    ]))
 
     ipcMain.handle(APP_INFO_CHANNEL, () => ({
       name: app.getName(),

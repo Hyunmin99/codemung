@@ -7,6 +7,22 @@
   opacity: var(--lava-opacity, 0.9);
   filter: saturate(var(--lava-saturation, 100%));
   contain: layout paint style;
+  transition: filter 1.4s ease, opacity 1.4s ease, --lava-duration 1.4s ease;
+}
+
+@property --lava-duration {
+  syntax: '<time>';
+  inherits: true;
+  initial-value: 20s;
+}
+
+.lava-motion__stop {
+  transition: stop-color 1.4s ease, stop-opacity 1.4s ease;
+}
+
+.lava-motion__field,
+.lava-motion__sheen {
+  transition: filter 1.4s ease, opacity 1.4s ease;
 }
 
 /*
@@ -168,7 +184,19 @@
 
 .lava-motion[data-state='waiting'] .lava-motion__field,
 .lava-motion[data-state='waiting_permission'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(1.08) saturate(1.06);
+  filter: url("#lava-metaball") brightness(1.2) hue-rotate(275deg) saturate(1.55);
+}
+
+.lava-motion[data-state='waiting_permission'] .lava-motion__stop--warm {
+  stop-color: #fff1ff;
+}
+
+.lava-motion[data-state='waiting_permission'] .lava-motion__stop--mid {
+  stop-color: #cb55ff;
+}
+
+.lava-motion[data-state='waiting_permission'] .lava-motion__stop--deep {
+  stop-color: #6127f5;
 }
 
 .lava-motion[data-state='waiting'] .lava-motion__sheen,
@@ -177,7 +205,26 @@
 }
 
 .lava-motion[data-state='error'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(1.07) hue-rotate(-9deg) saturate(1.08);
+  filter: url("#lava-metaball") brightness(1.12) saturate(1.35);
+  animation: lava-error-recoil 2.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.lava-motion[data-state='error'] .lava-motion__stop--warm {
+  stop-color: #ffd1c7;
+}
+
+.lava-motion[data-state='error'] .lava-motion__stop--mid {
+  stop-color: #f5222d;
+}
+
+.lava-motion[data-state='error'] .lava-motion__stop--deep {
+  stop-color: #7a1018;
+}
+
+.lava-motion[data-state='error'] .lava-motion__core-color {
+  flood-color: #ff8426;
 }
 
 .lava-motion[data-state='error'] .lava-motion__blob--five {
@@ -188,12 +235,52 @@
   opacity: 0.28;
 }
 
+@keyframes lava-error-recoil {
+  0%, 36%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  40% { transform: translate3d(-1px, 0.5px, 0) scale(0.99); }
+  44% { transform: translate3d(0.6px, -0.4px, 0) scale(1.005); }
+  49% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
 .lava-motion[data-state='completed'] .lava-motion__field {
-  filter: url("#lava-metaball") brightness(1.16) saturate(1.14);
+  filter: url("#lava-metaball") brightness(1.18) saturate(1.12);
+  animation: lava-complete-settle 1.5s cubic-bezier(0.2, 0.72, 0.25, 1) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.lava-motion[data-state='completed'] .lava-motion__stop--warm,
+.lava-motion[data-state='completed'] .lava-motion__stop--mid,
+.lava-motion[data-state='completed'] .lava-motion__stop--deep {
+  stop-color: #ffd96a;
 }
 
 .lava-motion[data-state='completed'] .lava-motion__sheen {
-  opacity: 0.84;
+  fill: #fff0b0;
+  opacity: 0;
+  animation: lava-complete-sweep 1.5s ease-out both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.lava-motion[data-state='completed'] .lava-motion__stop--mid { stop-color: #fff2a1; }
+.lava-motion[data-state='completed'] .lava-motion__stop--deep { stop-color: #ffad42; }
+
+.lava-motion[data-state='completed'] .lava-motion__sheen {
+  fill: #fff0b0;
+}
+
+@keyframes lava-complete-settle {
+  0% { transform: scale(0.94); }
+  28% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+@keyframes lava-complete-sweep {
+  0% { transform: translateX(-22px); opacity: 0; }
+  22% { opacity: 0.42; }
+  82% { opacity: 0.24; }
+  100% { transform: translateX(24px); opacity: 0; }
 }
 
 /*
@@ -392,6 +479,19 @@
   opacity: 0.35;
 }
 
+.lava-motion--reduced[data-state='completed'] .lava-motion__field,
+.lava-motion--reduced[data-state='completed'] .lava-motion__sheen {
+  animation: none;
+}
+
+.lava-motion--reduced[data-state='error'] .lava-motion__field {
+  animation: none;
+}
+
+.lava-motion--reduced[data-state='completed'] .lava-motion__sheen {
+  opacity: 0.22;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lava-motion__sway,
   .lava-motion__orbit,
@@ -402,5 +502,14 @@
 
   .lava-motion__sheen {
     opacity: 0.35;
+  }
+
+  .lava-motion[data-state='completed'] .lava-motion__field,
+  .lava-motion[data-state='completed'] .lava-motion__sheen {
+    animation: none;
+  }
+
+  .lava-motion[data-state='error'] .lava-motion__field {
+    animation: none;
   }
 }

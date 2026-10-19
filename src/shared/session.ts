@@ -22,6 +22,7 @@ export interface SessionSnapshot {
 }
 
 export const COMPLETED_VISIBLE_MS = 5_000
+export const ERROR_VISIBLE_MS = 8_000
 
 const PRIORITY: Readonly<Record<AgentState, number>> = {
   idle: 0,
@@ -31,10 +32,16 @@ const PRIORITY: Readonly<Record<AgentState, number>> = {
   waiting_permission: 4
 }
 
-function isActive(session: SessionRecord, now: number): boolean {
+function isVisible(session: SessionRecord, now: number): boolean {
   if (session.state === 'idle') return false
+  if (session.state === 'error') return true
   if (session.state !== 'completed') return true
   return now - session.updatedAt < COMPLETED_VISIBLE_MS
+}
+
+function affectsRepresentative(session: SessionRecord, now: number): boolean {
+  if (session.state === 'error') return now - session.updatedAt < ERROR_VISIBLE_MS
+  return isVisible(session, now)
 }
 
 function highestState(sessions: readonly SessionRecord[]): AgentState {
@@ -50,7 +57,7 @@ export function summarizeSessions(
 ): SessionSnapshot {
   const providers = (['claude', 'codex'] as const).flatMap((provider) => {
     const active = sessions
-      .filter((session) => session.provider === provider && isActive(session, now))
+      .filter((session) => session.provider === provider && isVisible(session, now))
       .map((session) => Object.freeze({ ...session }))
     if (active.length === 0) return []
     return [Object.freeze({
@@ -63,6 +70,6 @@ export function summarizeSessions(
 
   return Object.freeze({
     providers: Object.freeze(providers),
-    representativeState: highestState(providers.flatMap((provider) => provider.sessions))
+    representativeState: highestState(sessions.filter((session) => affectsRepresentative(session, now)))
   })
 }

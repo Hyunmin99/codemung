@@ -44,4 +44,41 @@ describe('detectSessions', () => {
     await utimes(log, new Date(1), new Date(1))
     await expect(detectSessions(Date.now(), home)).resolves.toEqual([])
   })
+
+  it.each([
+    ['task_started', 'working'],
+    ['task_complete', 'completed'],
+    ['exec_approval_request', 'waiting_permission'],
+    ['task_failed', 'error']
+  ] as const)('maps Codex %s lifecycle events to %s', async (event, state) => {
+    const home = await mkdtemp(join(tmpdir(), 'codemung-codex-state-'))
+    roots.push(home)
+    const directory = join(home, '.codex', 'sessions', '2026', '10', '04')
+    await mkdir(directory, { recursive: true })
+    const log = join(directory, 'rollout-fixture.jsonl')
+    await writeFile(log, [
+      '{"timestamp":"2026-10-04T00:00:00Z","type":"session_meta","payload":{"cwd":"/work/demo"}}',
+      `{"timestamp":"2026-10-04T00:00:01Z","type":"event_msg","payload":{"type":"${event}"}}`
+    ].join('\n') + '\n')
+
+    await expect(detectSessions(Date.now() + 1_000, home)).resolves.toEqual([
+      expect.objectContaining({ provider: 'codex', sessionId: 'rollout-fixture', state })
+    ])
+  })
+
+  it('treats an interrupted Codex turn as inactive and lets a newer turn win', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'codemung-codex-state-'))
+    roots.push(home)
+    const directory = join(home, '.codex', 'sessions', '2026', '10', '04')
+    await mkdir(directory, { recursive: true })
+    const log = join(directory, 'rollout-fixture.jsonl')
+    const event = (type: string) => `{"type":"event_msg","payload":{"type":"${type}"}}`
+    await writeFile(log, [event('task_started'), event('turn_aborted')].join('\n') + '\n')
+    await expect(detectSessions(Date.now() + 1_000, home)).resolves.toEqual([])
+
+    await writeFile(log, [event('task_started'), event('turn_aborted'), event('task_started')].join('\n') + '\n')
+    await expect(detectSessions(Date.now() + 1_000, home)).resolves.toEqual([
+      expect.objectContaining({ provider: 'codex', state: 'working' })
+    ])
+  })
 })

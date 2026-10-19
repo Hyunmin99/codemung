@@ -55,6 +55,25 @@ describe('SessionStore', () => {
     expect(store.getSnapshot().representativeState).toBe('idle')
   })
 
+  it('keeps errors prominent for eight seconds, then returns to idle', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    const store = createSessionStore(
+      [{ provider: 'codex', sessionId: 'x1', projectName: 'codemung', state: 'error', updatedAt: NOW }]
+    )
+    const listener = vi.fn()
+    store.subscribe(listener)
+
+    expect(store.getSnapshot().representativeState).toBe('error')
+    expect(store.getNextExpiryAt()).toBe(NOW + 8_000)
+    expect(store.getSnapshot().providers[0].sessions[0].state).toBe('error')
+    vi.advanceTimersByTime(8_000)
+    expect(store.getSnapshot().representativeState).toBe('idle')
+    expect(store.getSnapshot().providers[0].sessions[0].state).toBe('error')
+    expect(listener).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+
   it('returns and advances to the earliest pending completion expiry', () => {
     let now = NOW
     const store = createSessionStore(

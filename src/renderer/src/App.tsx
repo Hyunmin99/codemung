@@ -1,74 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CompanionSurface } from './companion/CompanionSurface'
 import { createSessionStore } from './session/session-store'
-import { CLAUDE_ICON_PATH, CODEX_ICON_PATH } from '../../shared/provider-icons'
+import { UsagePopover } from './usage/UsagePopover'
 import { DEFAULT_OBJECT_ID } from '../../shared/object'
 import { registeredMotionPacks } from './motion/registry'
 import { MotionScene } from './motion/MotionScene'
 
-function usageLabel(window: UsageWindow | null): string {
-  if (!window) return '—'
-  const remaining = Math.max(0, Math.min(100, 100 - window.usedPercent))
-  return `${Math.round(remaining)}% 남음`
-}
-
-function resetLabel(resetsAt: number | null, now = Date.now()): string {
-  if (!resetsAt) return '재설정 일정 없음'
-  const minutes = Math.round((resetsAt - now) / 60000)
-  if (minutes < 0) return '갱신 대기'
-  if (minutes < 60) return `${minutes}분 후 재설정`
-  if (minutes >= 24 * 60) {
-    const days = Math.floor(minutes / (24 * 60))
-    const hours = Math.floor((minutes % (24 * 60)) / 60)
-    return `${days}일 ${hours}시간 후 재설정`
-  }
-  const hours = Math.floor(minutes / 60)
-  return `${hours}시간 ${minutes % 60}분 후 재설정`
-}
-
-function UsageBar({ label, value, reset, exhausted }: { label: string; value: UsageWindow | null; reset: string; exhausted?: boolean }): React.JSX.Element {
-  const remaining = value ? Math.max(0, Math.min(100, 100 - value.usedPercent)) : 0
-  return <div className="usage-meter">
-    <div className="usage-meter-heading"><span>{label}</span><strong className={exhausted ? 'usage-exhausted' : ''}>{usageLabel(value)}</strong></div>
-    <div className="usage-track" role="progressbar" aria-label={`${label} 남은 사용량`} aria-valuemin={0} aria-valuemax={100} {...(value ? { 'aria-valuenow': remaining } : {})}><span style={{ width: `${remaining}%` }} /></div>
-    <small>{exhausted ? '한도 소진' : reset}</small>
-  </div>
-}
-
-function ProviderIcon({ provider }: { provider: 'codex' | 'claude' }): React.JSX.Element {
-  const iconPath = provider === 'codex' ? CODEX_ICON_PATH : CLAUDE_ICON_PATH
-  return <span className={`provider-icon provider-icon-${provider}`} aria-hidden="true"><svg viewBox="0 0 24 24"><path d={iconPath} /></svg></span>
-}
-function UsagePopover(): React.JSX.Element {
-  const [snapshot, setSnapshot] = useState<UsageSnapshot | null>(null)
-  const [selectedBucket, setSelectedBucket] = useState('')
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
-  const [clock, setClock] = useState(Date.now())
-  useEffect(() => { const timer = window.setInterval(() => setClock(Date.now()), 60_000); return () => window.clearInterval(timer) }, [])
-  useEffect(() => window.codemung?.onUsageSnapshot((next) => setSnapshot(next)), [])
-  useEffect(() => { void window.codemung?.getUsageSnapshot().then((current) => { if (current) setSnapshot(current) }); const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') window.codemung?.closeUsage() }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [])
-  const codex = snapshot?.codex
-  const claude = snapshot?.claude
-  const bucket = codex?.buckets.find((entry) => entry.id === selectedBucket) ?? codex?.buckets[0]
-  useEffect(() => { if (bucket && bucket.id !== selectedBucket) { setSelectedBucket(bucket.id); window.codemung?.setUsageBucket(bucket.id) } }, [bucket?.id, selectedBucket])
-  const refresh = async () => { setRefreshing(true); setRefreshError(null); try { const next = await window.codemung?.refreshUsage(); if (next) setSnapshot(next) } catch (error) { setRefreshError(error instanceof Error ? error.message : '새로 고치지 못했습니다.') } finally { setRefreshing(false) } }
-  return <main className="usage-popover" aria-label="CodeMung 남은 사용량">
-    <header className="usage-header"><div><span className="eyebrow">CODEMUNG</span><h1>남은 사용량</h1></div><button className="icon-button" onClick={() => void refresh()} disabled={refreshing} aria-label="새로 고침">↻</button></header>
-    <section className="provider-card"><div className="provider-heading"><ProviderIcon provider="codex" /><div><h2>Codex</h2><span>{codex?.status === 'stale' ? '갱신 지연' : codex?.status === 'ready' ? '정상 연결됨' : codex?.message ?? '불러오는 중'}</span></div></div>
-      {codex && codex.buckets.length > 1 && <label className="bucket-select"><span>남은 사용량 구분</span><select value={bucket?.id ?? ''} onChange={(event) => { setSelectedBucket(event.target.value); window.codemung?.setUsageBucket(event.target.value) }}>{codex.buckets.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label>}
-      <UsageBar label="5시간" value={bucket?.fiveHour ?? null} reset={resetLabel(bucket?.fiveHour?.resetsAt ?? null, clock)} />
-      <UsageBar label="주간" value={bucket?.weekly ?? null} exhausted={bucket?.weekly?.usedPercent === 100} reset={resetLabel(bucket?.weekly?.resetsAt ?? null, clock)} />
-      <small className="provider-updated">{codex?.updatedAt ? `업데이트 ${new Date(codex.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
-    </section>
-    <section className="provider-card"><div className="provider-heading"><ProviderIcon provider="claude" /><div><h2>Claude</h2><span>{claude?.status === 'stale' ? '갱신 지연' : claude?.status === 'ready' ? '정상 연결됨' : claude?.message ?? '연결 필요'}</span></div></div>
-      <UsageBar label="5시간" value={claude?.buckets[0]?.fiveHour ?? null} reset={resetLabel(claude?.buckets[0]?.fiveHour?.resetsAt ?? null, clock)} />
-      <UsageBar label="주간" value={claude?.buckets[0]?.weekly ?? null} exhausted={claude?.buckets[0]?.weekly?.usedPercent === 100} reset={resetLabel(claude?.buckets[0]?.weekly?.resetsAt ?? null, clock)} />
-      <small className="provider-updated">{claude?.updatedAt ? `업데이트 ${new Date(claude.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : '업데이트 확인 중'}</small>
-    </section>
-    <footer className="usage-footer"><span>{refreshError ?? ''}</span><div><button onClick={() => window.codemung?.openSettings()}>Claude 연결 설정</button><button onClick={() => window.codemung?.openSettings()}>설정</button><button onClick={() => window.codemung?.toggleCompanion()}>오브제 창</button><button onClick={() => window.codemung?.quit()}>종료</button></div></footer>
-  </main>
-}
+import {
+  createSessionSoundObserver,
+  getSoundPreference,
+  playSound,
+  saveSoundPreference,
+  SOUND_KEY
+} from './audio/sound'
 
 interface SettingsScreenProps {
   appInfo: CodeMungAppInfo | null
@@ -80,110 +24,522 @@ const OBJECT_SIZE_OPTIONS: Array<{ value: ObjectSize; label: string }> = [
   { value: 'large', label: '크게' }
 ]
 
-function getObjectSizeApi(): (() => Promise<ObjectSize | undefined>) | undefined {
+function getObjectSizeApi():
+  (() => Promise<ObjectSize | undefined>) | undefined {
   // Prefer the compatibility channel so a hot-reloaded preload can still talk
   // to a main process from the previous build.
   return window.codemung?.getCharacterSize ?? window.codemung?.getObjectSize
 }
 
-function subscribeObjectSize(listener: (size: ObjectSize) => void): (() => void) | undefined {
-  return (window.codemung?.onCharacterSize ?? window.codemung?.onObjectSize)?.(listener)
+function subscribeObjectSize(
+  listener: (size: ObjectSize) => void
+): (() => void) | undefined {
+  return (window.codemung?.onCharacterSize ?? window.codemung?.onObjectSize)?.(
+    listener
+  )
 }
 
 function updateObjectSize(size: ObjectSize): void {
-  const setter = window.codemung?.setCharacterSize ?? window.codemung?.setObjectSize
+  const setter =
+    window.codemung?.setCharacterSize ?? window.codemung?.setObjectSize
   setter?.(size)
 }
 
-function subscribeObjectId(listener: (id: ObjectId) => void): (() => void) | undefined {
+function subscribeObjectId(
+  listener: (id: ObjectId) => void
+): (() => void) | undefined {
   return window.codemung?.onObjectId?.(listener)
 }
 
-function SettingsScreen({
-  appInfo
-}: SettingsScreenProps): React.JSX.Element {
+const SETTINGS_PANES = [
+  { id: 'general', label: '일반' },
+  { id: 'sound', label: '소리' },
+  { id: 'connection', label: '연결' },
+  { id: 'about', label: '정보' }
+] as const
+
+type SettingsPane = (typeof SETTINGS_PANES)[number]['id']
+const SETTINGS_PANE_KEY = 'codemung:settings-pane'
+
+function savedSettingsPane(): SettingsPane {
+  try {
+    const saved = window.localStorage.getItem(SETTINGS_PANE_KEY)
+    return SETTINGS_PANES.find((pane) => pane.id === saved)?.id ?? 'general'
+  } catch {
+    return 'general'
+  }
+}
+
+function SettingsScreen({ appInfo }: SettingsScreenProps): React.JSX.Element {
+  const [pane, setPane] = useState(savedSettingsPane)
+  const paneLabel = SETTINGS_PANES.find((item) => item.id === pane)!.label
+  useEffect(() => {
+    document.title = `${paneLabel} — CodeMung 설정`
+    try {
+      window.localStorage.setItem(SETTINGS_PANE_KEY, pane)
+    } catch {
+      /* Session-only navigation when storage is unavailable. */
+    }
+  }, [pane, paneLabel])
+  const [sound, setSound] = useState(getSoundPreference)
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key === SOUND_KEY || event.key === null)
+        setSound(getSoundPreference())
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
   const [objectSize, setObjectSize] = useState<ObjectSize>('medium')
   const [objectId, setObjectId] = useState<ObjectId>(DEFAULT_OBJECT_ID)
-  const [claudeStatus, setClaudeStatus] = useState<Awaited<ReturnType<NonNullable<typeof window.codemung>['getClaudeConnectionStatus']>>>()
+  const [claudeStatus, setClaudeStatus] =
+    useState<
+      Awaited<
+        ReturnType<
+          NonNullable<typeof window.codemung>['getClaudeConnectionStatus']
+        >
+      >
+    >()
   const [claudeMessage, setClaudeMessage] = useState('')
   const [claudeBusy, setClaudeBusy] = useState(false)
-  const refreshClaudeStatus = () => void window.codemung?.getClaudeConnectionStatus().then(setClaudeStatus)
+  const refreshClaudeStatus = () =>
+    void window.codemung?.getClaudeConnectionStatus().then(setClaudeStatus)
   useEffect(() => {
-    void getObjectSizeApi()?.().then((size) => { if (size) setObjectSize(size) })
+    void getObjectSizeApi()?.().then((size) => {
+      if (size) setObjectSize(size)
+    })
     const offSize = subscribeObjectSize(setObjectSize)
     const offObject = subscribeObjectId(setObjectId)
-    void window.codemung?.getObjectId?.().then((id) => { if (id) setObjectId(id) })
+    void window.codemung?.getObjectId?.().then((id) => {
+      if (id) setObjectId(id)
+    })
     refreshClaudeStatus()
     const timer = window.setInterval(refreshClaudeStatus, 2_000)
-    return () => { offSize?.(); offObject?.(); window.clearInterval(timer) }
+    return () => {
+      offSize?.()
+      offObject?.()
+      window.clearInterval(timer)
+    }
   }, [])
+  const changeConnection = async (disconnect = false): Promise<void> => {
+    setClaudeBusy(true)
+    setClaudeMessage('')
+    try {
+      const result = disconnect
+        ? await window.codemung?.disconnectClaude()
+        : await window.codemung?.connectClaude()
+      const succeeded =
+        result &&
+        ('ok' in result
+          ? result.ok
+          : ['installed', 'already-installed'].includes(result.status))
+      if (result)
+        setClaudeMessage(
+          result.message ??
+            (!succeeded
+              ? 'Claude 연결 설정을 변경하지 못했습니다.'
+              : disconnect
+                ? 'Claude 연결을 해제했습니다.'
+                : '연결했습니다. Claude를 실행하면 사용량과 세션 상태가 표시됩니다.')
+        )
+      refreshClaudeStatus()
+    } catch (error) {
+      setClaudeMessage(
+        error instanceof Error
+          ? error.message
+          : '연결 설정을 변경하지 못했습니다.'
+      )
+    } finally {
+      setClaudeBusy(false)
+    }
+  }
+  const connected = Boolean(
+    claudeStatus?.statusLineInstalled && claudeStatus?.hooksInstalled
+  )
   return (
-    <main className="settings-window" aria-label="CodeMung 설정">
+    <main className="settings-window mac-surface" aria-label="CodeMung 설정">
       <header className="settings-titlebar">
-        <h1>CodeMung 설정</h1>
-        <p>{appInfo ? `버전 ${appInfo.version}` : 'CodeMung 환경설정'}</p>
-      </header>
-
-      <section className="settings-group" aria-labelledby="object-size-heading">
-        <h2 id="object-size-heading">오브제</h2>
-        <div className="settings-group-content">
-          <div className="object-picker" role="radiogroup" aria-label="오브제 종류">
-            {registeredMotionPacks.map((option) => <button
-              key={option.id}
+        <span className="settings-window-title">CodeMung 설정</span>
+        <div
+          className="settings-toolbar"
+          role="tablist"
+          aria-label="설정 항목"
+          onKeyDown={(event) => {
+            const tabs = Array.from(
+              event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                '[role="tab"]'
+              )
+            )
+            const current = tabs.indexOf(
+              document.activeElement as HTMLButtonElement
+            )
+            if (current < 0) return
+            let next = current
+            if (event.key === 'ArrowRight') next = (current + 1) % tabs.length
+            else if (event.key === 'ArrowLeft')
+              next = (current - 1 + tabs.length) % tabs.length
+            else if (event.key === 'Home') next = 0
+            else if (event.key === 'End') next = tabs.length - 1
+            else return
+            event.preventDefault()
+            setPane(SETTINGS_PANES[next].id)
+            tabs[next].focus()
+          }}
+        >
+          {SETTINGS_PANES.map((item) => (
+            <button
+              key={item.id}
               type="button"
-              role="radio"
-              aria-checked={objectId === option.id}
-              className="object-option"
-              onClick={() => { setObjectId(option.id); window.codemung?.setObjectId?.(option.id) }}
+              role="tab"
+              id={`tab-${item.id}`}
+              aria-selected={pane === item.id}
+              aria-controls="settings-pane"
+              tabIndex={pane === item.id ? 0 : -1}
+              onClick={() => setPane(item.id)}
             >
-              <span className="object-option-preview" aria-hidden="true"><MotionScene pack={option.id} state="idle" size="small" /></span>
-              <span className="object-option-copy"><strong>{option.label}</strong><small>{option.description}</small></span>
-              <span className="object-option-check" aria-hidden="true">{objectId === option.id ? '✓' : ''}</span>
-            </button>)}
-          </div>
-          <div className="setting-row settings-size-row">
-            <span><strong>오브제 크기</strong><small>라바와 클릭 영역을 함께 조절합니다</small></span>
-            <div className="settings-segmented" role="radiogroup" aria-label="오브제 크기">
-              {OBJECT_SIZE_OPTIONS.map((option) => <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={objectSize === option.value}
-                className="settings-segment"
-                onClick={() => { setObjectSize(option.value); updateObjectSize(option.value) }}
-              >{option.label}</button>)}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="settings-group" aria-labelledby="claude-heading">
-        <h2 id="claude-heading">Claude 연결</h2>
-        <div className="settings-group-content">
-          <div className="setting-row"><span><strong>사용량 연결</strong><small>{claudeStatus?.statusLineInstalled ? 'status line relay 설치됨' : 'status line relay 미설치'}</small></span><span className="settings-connection-state">{claudeStatus?.statusLineInstalled ? '연결됨' : '미연결'}</span></div>
-          <div className="setting-row"><span><strong>세션 상태 연결</strong><small>{claudeStatus?.hooksInstalled ? 'Claude hook 설치됨' : 'Claude hook 미설치'}</small></span><span className="settings-connection-state">{claudeStatus?.hooksInstalled ? '연결됨' : '미연결'}</span></div>
-          <div className="setting-row"><span><strong>로컬 수신기</strong><small>{claudeStatus?.listener.listening ? '127.0.0.1에서 대기 중' : '수신기를 사용할 수 없음'}</small></span><small>{claudeStatus?.listener.receivedAt ? `사용량 ${new Date(claudeStatus.listener.receivedAt).toLocaleTimeString()}` : '사용량 수신 기록 없음'}</small></div>
-          <div className="setting-row"><span><strong>세션 훅 수신</strong><small>작업·대기·완료 상태 이벤트</small></span><small>{claudeStatus?.hookDiagnostics.receivedAt ? new Date(claudeStatus.hookDiagnostics.receivedAt).toLocaleTimeString() : '수신 기록 없음'}</small></div>
-          {claudeStatus?.backupConflict && <p className="settings-warning">기존 status line 백업 파일이 남아 있지만 현재 CodeMung 연결은 확인되지 않습니다. 자동으로 덮어쓰거나 삭제하지 않았습니다. Claude 설정을 확인하고 백업 파일을 직접 정리한 뒤 다시 연결해 주세요.</p>}
-          {claudeMessage && <p className="settings-inline-message">{claudeMessage}</p>}
-          <div className="settings-connection-actions"><button type="button" disabled={claudeBusy} onClick={() => { setClaudeBusy(true); setClaudeMessage(''); void window.codemung?.connectClaude().then((result) => { setClaudeMessage(result?.message ?? '사용량과 세션 상태 연결을 설치했습니다. Claude를 실행하면 값이 들어옵니다.'); refreshClaudeStatus() }).finally(() => setClaudeBusy(false)) }}>{claudeStatus?.statusLineInstalled || claudeStatus?.hooksInstalled ? '다시 연결' : '연결'}</button><button type="button" disabled={claudeBusy || (!claudeStatus?.statusLineInstalled && !claudeStatus?.hooksInstalled)} onClick={() => { setClaudeBusy(true); setClaudeMessage(''); void window.codemung?.disconnectClaude().then((result) => { setClaudeMessage(result?.message ?? 'Claude 연결을 해제했습니다.'); refreshClaudeStatus() }).finally(() => setClaudeBusy(false)) }}>연결 해제</button></div>
-        </div>
-      </section>
-
-      <section className="settings-group" aria-labelledby="updates-heading">
-        <h2 id="updates-heading">업데이트</h2>
-        <div className="settings-group-content">
-          <div className="setting-row settings-update-row">
-            <span>
-              <strong>CodeMung 업데이트</strong>
-              <small>최신 릴리스 확인</small>
-            </span>
-            <button type="button" className="settings-update-button" onClick={() => void window.codemung?.openReleases()}>
-              확인
+              {item.label}
             </button>
-          </div>
+          ))}
         </div>
-      </section>
+      </header>
+      <div
+        className="settings-pane"
+        id="settings-pane"
+        role="tabpanel"
+        aria-labelledby={`tab-${pane}`}
+        tabIndex={0}
+        key={pane}
+      >
+        <div className="settings-pane-heading">
+          <h1>{paneLabel}</h1>
+          <p>
+            {
+              {
+                general: '데스크톱에 함께할 오브제를 설정합니다.',
+                sound: '필요한 순간에만, 가벼운 소리로.',
+                connection: '사용 중인 코딩 도구를 연결합니다.',
+                about: '데스크톱을 위한 작은 동반자.'
+              }[pane]
+            }
+          </p>
+        </div>
+        {pane === 'general' && (
+          <>
+            <section
+              className="settings-group"
+              aria-labelledby="object-size-heading"
+            >
+              <h2 id="object-size-heading">오브제</h2>
+              <div className="settings-group-content">
+                <div
+                  className="object-picker"
+                  role="radiogroup"
+                  aria-label="오브제 종류"
+                >
+                  {registeredMotionPacks.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={objectId === option.id}
+                      className="object-option"
+                      onClick={() => {
+                        setObjectId(option.id)
+                        window.codemung?.setObjectId?.(option.id)
+                      }}
+                    >
+                      <span
+                        className="object-option-preview"
+                        aria-hidden="true"
+                      >
+                        <MotionScene
+                          pack={option.id}
+                          state="working"
+                          size="small"
+                        />
+                      </span>
+                      <span className="object-option-copy">
+                        <strong>{option.label}</strong>
+                        <small>{option.description}</small>
+                      </span>
+                      <span className="object-option-check" aria-hidden="true">
+                        {objectId === option.id ? '✓' : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="setting-row">
+                  <span>
+                    <strong>오브제 크기</strong>
+                    <small>화면에 맞는 크기를 선택하세요.</small>
+                  </span>
+                  <div
+                    className="settings-segmented"
+                    role="radiogroup"
+                    aria-label="오브제 크기"
+                    onKeyDown={(event) => {
+                      const index = OBJECT_SIZE_OPTIONS.findIndex(
+                        (option) => option.value === objectSize
+                      )
+                      const direction =
+                        event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                          ? 1
+                          : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                            ? -1
+                            : 0
+                      if (!direction) return
+                      event.preventDefault()
+                      const next =
+                        (index + direction + OBJECT_SIZE_OPTIONS.length) %
+                        OBJECT_SIZE_OPTIONS.length
+                      const value = OBJECT_SIZE_OPTIONS[next].value
+                      setObjectSize(value)
+                      updateObjectSize(value)
+                      event.currentTarget
+                        .querySelectorAll<HTMLButtonElement>('[role="radio"]')
+                        [next].focus()
+                    }}
+                  >
+                    {OBJECT_SIZE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={objectSize === option.value}
+                        tabIndex={objectSize === option.value ? 0 : -1}
+                        onClick={() => {
+                          setObjectSize(option.value)
+                          updateObjectSize(option.value)
+                        }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+            <p className="settings-footnote">
+              오브제를 클릭하면 활성 세션을, 메뉴 막대 아이콘을 클릭하면 남은
+              사용량을 볼 수 있습니다.
+            </p>
+          </>
+        )}
+        {pane === 'sound' && (
+          <>
+            <section className="settings-group" aria-labelledby="sound-heading">
+              <h2 id="sound-heading">효과음</h2>
+              <div className="settings-group-content">
+                <div className="setting-row">
+                  <span id="sound-toggle-label">
+                    <strong>효과음 사용</strong>
+                    <small>오브제 클릭과 작업 상태 변경을 알려줍니다.</small>
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-labelledby="sound-toggle-label"
+                    aria-checked={sound.enabled}
+                    className="settings-switch"
+                    onClick={() => {
+                      const next = { ...sound, enabled: !sound.enabled }
+                      saveSoundPreference(next)
+                      setSound(next)
+                    }}
+                  >
+                    <span />
+                  </button>
+                </div>
+                <label className="setting-row">
+                  <span>
+                    <strong>음량</strong>
+                  </span>
+                  <span className="sound-volume">
+                    <input
+                      aria-label="효과음 음량"
+                      type="range"
+                      min="0"
+                      max="100"
+                      disabled={!sound.enabled}
+                      value={Math.round(sound.volume * 100)}
+                      onChange={(event) => {
+                        const next = {
+                          ...sound,
+                          volume: Number(event.target.value) / 100
+                        }
+                        saveSoundPreference(next)
+                        setSound(next)
+                      }}
+                    />
+                    <output>{Math.round(sound.volume * 100)}%</output>
+                  </span>
+                </label>
+                <div className="setting-row">
+                  <span>
+                    <strong>Soft</strong>
+                    <small>따뜻하고 부드러운 사운드</small>
+                  </span>
+                  <button
+                    className="mac-button"
+                    type="button"
+                    disabled={!sound.enabled}
+                    onClick={() => playSound('complete')}
+                  >
+                    미리 듣기
+                  </button>
+                </div>
+              </div>
+            </section>
+            <p className="settings-footnote">
+              앱을 실행한 뒤 오브제를 한 번 눌러 주세요. 작업 중에는 반복음을
+              재생하지 않습니다.
+            </p>
+          </>
+        )}
+        {pane === 'connection' && (
+          <>
+            <section
+              className="settings-group"
+              aria-labelledby="claude-heading"
+            >
+              <h2 id="claude-heading">Claude</h2>
+              <div className="settings-group-content">
+                <div className="setting-row">
+                  <span>
+                    <strong>Claude 연결</strong>
+                    <small>사용량과 작업 상태를 함께 확인합니다.</small>
+                  </span>
+                  <span
+                    className={`connection-label${connected ? ' connection-label--ready' : ''}`}
+                  >
+                    <i aria-hidden="true" />
+                    {connected ? '연결됨' : '연결 안 됨'}
+                  </span>
+                </div>
+                <div className="setting-row">
+                  <span>
+                    <strong>사용량</strong>
+                  </span>
+                  <span className="setting-value">
+                    {claudeStatus?.statusLineInstalled ? '연결됨' : '연결 필요'}
+                  </span>
+                </div>
+                <div className="setting-row">
+                  <span>
+                    <strong>세션 상태</strong>
+                  </span>
+                  <span className="setting-value">
+                    {claudeStatus?.hooksInstalled ? '연결됨' : '연결 필요'}
+                  </span>
+                </div>
+                <div className="settings-connection-actions">
+                  <button
+                    className="mac-button"
+                    type="button"
+                    disabled={
+                      claudeBusy ||
+                      (!claudeStatus?.statusLineInstalled &&
+                        !claudeStatus?.hooksInstalled)
+                    }
+                    onClick={() => void changeConnection(true)}
+                  >
+                    연결 해제
+                  </button>
+                  <button
+                    className="mac-button mac-button--primary"
+                    type="button"
+                    disabled={claudeBusy}
+                    onClick={() => void changeConnection()}
+                  >
+                    {claudeBusy
+                      ? '변경 중…'
+                      : claudeStatus?.statusLineInstalled ||
+                          claudeStatus?.hooksInstalled
+                        ? '다시 연결'
+                        : '연결'}
+                  </button>
+                </div>
+              </div>
+            </section>
+            {claudeStatus?.backupConflict && (
+              <p className="settings-warning" role="alert">
+                이전 설정의 백업이 남아 있습니다. Claude 설정과 백업 파일을
+                확인한 뒤 다시 연결해 주세요. 기존 파일은 덮어쓰지 않습니다.
+              </p>
+            )}
+            {claudeMessage && (
+              <p className="settings-inline-message" role="status">
+                {claudeMessage}
+              </p>
+            )}
+            <details className="connection-details">
+              <summary>연결 진단</summary>
+              <dl>
+                <div>
+                  <dt>로컬 수신기</dt>
+                  <dd>
+                    {claudeStatus?.listener.listening ? '정상' : '연결 안 됨'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>마지막 사용량 수신</dt>
+                  <dd>
+                    {claudeStatus?.listener.receivedAt
+                      ? new Date(
+                          claudeStatus.listener.receivedAt
+                        ).toLocaleTimeString()
+                      : '수신 기록 없음'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>마지막 상태 수신</dt>
+                  <dd>
+                    {claudeStatus?.hookDiagnostics.receivedAt
+                      ? new Date(
+                          claudeStatus.hookDiagnostics.receivedAt
+                        ).toLocaleTimeString()
+                      : '수신 기록 없음'}
+                  </dd>
+                </div>
+              </dl>
+            </details>
+            <p className="settings-footnote">
+              Codex는 로컬 로그인 정보를 자동으로 사용합니다.
+            </p>
+          </>
+        )}
+        {pane === 'about' && (
+          <>
+            <div className="settings-about">
+              <div className="settings-about-object" aria-hidden="true">
+                <MotionScene pack={objectId} state="working" size="small" />
+              </div>
+              <h2>CodeMung</h2>
+              <p>코딩하는 동안, 곁에서.</p>
+              <span>
+                {appInfo ? `버전 ${appInfo.version}` : '버전 확인 중'}
+              </span>
+            </div>
+            <section className="settings-group" aria-label="업데이트">
+              <div className="settings-group-content">
+                <div className="setting-row">
+                  <span>
+                    <strong>업데이트</strong>
+                    <small>GitHub에서 최신 릴리스를 확인합니다.</small>
+                  </span>
+                  <button
+                    className="mac-button"
+                    type="button"
+                    onClick={() => void window.codemung?.openReleases()}
+                  >
+                    업데이트 확인…
+                  </button>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </main>
   )
 }
@@ -202,22 +558,35 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     if (isSettingsWindow) return
-    const unsubscribe = window.codemung?.onSessions((sessions) => sessionStore.replace(sessions))
+    const observeSound = createSessionSoundObserver()
+    let receivedLive = false
+    const unsubscribe = window.codemung?.onSessions((sessions) => {
+      receivedLive = true
+      observeSound(sessions)
+      sessionStore.replace(sessions)
+    })
     void window.codemung?.getSessions().then((sessions) => {
-      if (sessions) sessionStore.replace(sessions)
+      if (sessions && !receivedLive) {
+        observeSound(sessions)
+        sessionStore.replace(sessions)
+      }
     })
     return unsubscribe
   }, [isSettingsWindow, sessionStore])
 
   useEffect(() => {
     const unsubscribe = subscribeObjectSize(setObjectSize)
-    void getObjectSizeApi()?.().then((size) => { if (size) setObjectSize(size) })
+    void getObjectSizeApi()?.().then((size) => {
+      if (size) setObjectSize(size)
+    })
     return unsubscribe
   }, [])
 
   useEffect(() => {
     const unsubscribe = subscribeObjectId(setObjectId)
-    void window.codemung?.getObjectId?.().then((id) => { if (id) setObjectId(id) })
+    void window.codemung?.getObjectId?.().then((id) => {
+      if (id) setObjectId(id)
+    })
     return unsubscribe
   }, [])
 
@@ -230,9 +599,15 @@ function App(): React.JSX.Element {
       store={sessionStore}
       size={objectSize}
       objectId={objectId}
-      onPanelOpenChange={(isOpen) => window.codemung?.setSessionPanelOpen(isOpen)}
-      onDragStart={({ startScreenX, startScreenY }) => window.codemung?.startCompanionDrag(startScreenX, startScreenY)}
-      onDrag={({ screenX, screenY }) => window.codemung?.moveCompanion(screenX, screenY)}
+      onPanelOpenChange={(isOpen) =>
+        window.codemung?.setSessionPanelOpen(isOpen)
+      }
+      onDragStart={({ startScreenX, startScreenY }) =>
+        window.codemung?.startCompanionDrag(startScreenX, startScreenY)
+      }
+      onDrag={({ screenX, screenY }) =>
+        window.codemung?.moveCompanion(screenX, screenY)
+      }
       onDragEnd={() => window.codemung?.endCompanionDrag()}
     />
   )

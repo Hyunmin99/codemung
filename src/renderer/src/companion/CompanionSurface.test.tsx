@@ -29,7 +29,7 @@ describe('CompanionSurface', () => {
     ], () => NOW)
     const { container } = render(<CompanionSurface store={store} onDrag={vi.fn()} />)
 
-    const status = screen.getByText(label)
+    const status = screen.getByText(label, { selector: '.companion-state' })
     expect(status).toHaveClass(`companion-state--${state}`)
     expect(status).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('.companion')).toContainElement(status)
@@ -40,13 +40,26 @@ describe('CompanionSurface', () => {
     const store = createSessionStore([], () => NOW)
     render(<CompanionSurface store={store} onDrag={vi.fn()} />)
 
-    expect(screen.getByText('쉬는 중')).toBeInTheDocument()
+    expect(screen.getByText('쉬는 중', { selector: '.companion-state' })).toBeInTheDocument()
     act(() => {
       store.replace([{ provider: 'claude', sessionId: 'c1', projectName: 'codemung', state: 'waiting_permission', updatedAt: NOW }])
     })
 
-    expect(screen.getByText('확인 필요')).toBeInTheDocument()
-    expect(screen.queryByText('쉬는 중')).not.toBeInTheDocument()
+    expect(screen.getByText('확인 필요', { selector: '.companion-state' })).toBeInTheDocument()
+    expect(screen.queryByText('쉬는 중', { selector: '.companion-state' })).not.toBeInTheDocument()
+  })
+
+  it('previews a selected state without changing the session list', () => {
+    const store = createSessionStore([
+      { provider: 'claude', sessionId: 'c1', projectName: 'codemung', state: 'working', updatedAt: NOW }
+    ], () => NOW)
+    const { container } = render(<CompanionSurface store={store} onDrag={vi.fn()} />)
+
+    fireEvent.change(screen.getByRole('combobox', { name: '오브제 상태 미리보기' }), { target: { value: 'error' } })
+
+    expect(container.querySelector('.motion-scene')).toHaveAttribute('data-motion-state', 'error')
+    expect(screen.getByText('오류', { selector: '.companion-state' })).toBeInTheDocument()
+    expect(store.getSnapshot().providers[0]?.sessions[0]?.state).toBe('working')
   })
 
   it('toggles the session list with a primary click on the visible companion', () => {

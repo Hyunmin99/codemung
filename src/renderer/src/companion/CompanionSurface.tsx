@@ -3,6 +3,9 @@ import { getExpandedCompanionWindowSize } from '../../../shared/companion-window
 import type { SessionStore } from '../session/session-store'
 import { ContextPanel } from '../session/ContextPanel'
 import { MotionScene } from '../motion/MotionScene'
+import type { AgentState } from '../../../shared/session'
+
+import { playSound, STATE_CUES } from '../audio/sound'
 
 const CLICK_DRAG_THRESHOLD_PX = 5
 
@@ -13,6 +16,8 @@ const STATE_LABELS = {
   completed: '완료',
   error: '오류'
 } as const
+
+const PREVIEW_STATES = Object.keys(STATE_LABELS) as AgentState[]
 
 type SessionPanelStyle = CSSProperties & Record<
   '--session-panel-top' | '--session-panel-width' | '--session-panel-height',
@@ -60,6 +65,8 @@ export function CompanionSurface({
 }: CompanionSurfaceProps): React.JSX.Element {
   const [snapshot, setSnapshot] = useState(() => store.getSnapshot())
   const [isPanelOpen, setPanelOpen] = useState(false)
+  const [previewState, setPreviewState] = useState<AgentState | null>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
   const pointerStart = useRef<PointerStart | null>(null)
   const ignoreNextClick = useRef(false)
   const expandedLayout = getExpandedCompanionWindowSize(
@@ -75,10 +82,17 @@ export function CompanionSurface({
 
   const updatePanelOpen = (next: boolean): void => {
     setPanelOpen(next)
+    if (!next && document.hasFocus()) trigger.current?.focus({ preventScroll: true })
     onPanelOpenChange?.(next)
   }
 
-  const togglePanel = (): void => updatePanelOpen(!isPanelOpen)
+  const togglePanel = (): void => {
+    playSound(isPanelOpen ? 'close' : 'open')
+    updatePanelOpen(!isPanelOpen)
+  }
+  const representativeState = import.meta.env.DEV
+    ? previewState ?? snapshot.representativeState
+    : snapshot.representativeState
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>): void => {
     if (event.button !== 0) return
@@ -126,6 +140,7 @@ export function CompanionSurface({
       if (isPanelOpen && event.target === event.currentTarget) updatePanelOpen(false)
     }}>
       <button
+        ref={trigger}
         className="companion-trigger"
         type="button"
         data-object-size={size}
@@ -140,13 +155,29 @@ export function CompanionSurface({
           togglePanel()
         }}
       >
-        <MotionScene pack={objectId} state={snapshot.representativeState} size={size} />
+        <MotionScene pack={objectId} state={representativeState} size={size} />
       </button>
-      <span className={`companion-state companion-state--${snapshot.representativeState}`} aria-hidden="true">
-        {STATE_LABELS[snapshot.representativeState]}
+      <span className={`companion-state companion-state--${representativeState}`} aria-hidden="true">
+        {STATE_LABELS[representativeState]}
       </span>
+      {import.meta.env.DEV && <label className="state-preview-control">
+        <span>미리보기</span>
+        <select
+          aria-label="오브제 상태 미리보기"
+          value={previewState ?? ''}
+          onChange={(event) => {
+            const state = event.target.value as AgentState
+            setPreviewState(state || null)
+            if (STATE_CUES[state]) playSound(STATE_CUES[state]!)
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <option value="">실제 상태</option>
+          {PREVIEW_STATES.map((state) => <option key={state} value={state}>{STATE_LABELS[state]}</option>)}
+        </select>
+      </label>}
       {isPanelOpen && <ContextPanel snapshot={snapshot} onClose={() => updatePanelOpen(false)} />}
-      <p className="sr-only" aria-live="polite">현재 대표 상태: {snapshot.representativeState}</p>
+      <p className="sr-only" aria-live="polite">현재 대표 상태: {representativeState}</p>
     </main>
   )
 }

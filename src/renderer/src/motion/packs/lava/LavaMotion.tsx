@@ -30,11 +30,11 @@ function stateEnergy(state: MotionPackProps['state']): number {
       return 1.12
     case 'waiting':
     case 'waiting_permission':
-      return 0.84
+      return 1.5
     case 'error':
       return 0.94
     case 'completed':
-      return 1.04
+      return 0.42
     default:
       return 0.72
   }
@@ -46,6 +46,7 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
   const density = clamp(motion.density)
   const turbulence = clamp(motion.turbulence)
   const energy = stateEnergy(state)
+  const isIdle = String(state) === 'idle'
 
   // 크기 변화 진폭. turbulence/density가 registry.ts에서 이미 상태별로
   // 다르게 정의돼 있어, 별도 분기 없이 상태 차등이 따라온다.
@@ -71,8 +72,8 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
     '--lava-saturation': `${118 + brightness * 42}%`,
     '--lava-secondary-scale': 0.72 + density * 0.34,
     // 세로 이동을 키워 부력 사이클이 읽히게. 가로는 sway 레이어와 나눠 가진다.
-    '--lava-spread': `${12 + turbulence * 14}px`,
-    '--lava-travel-x': `${5 + turbulence * 11}px`,
+    '--lava-spread': `${(isIdle ? 3 : 12) + turbulence * (isIdle ? 3 : 14)}px`,
+    '--lava-travel-x': `${(isIdle ? 1 : 5) + turbulence * (isIdle ? 2 : 11)}px`,
     '--lava-pulse-lo': pulseLo,
     '--lava-pulse-mid': pulseMid,
     '--lava-pulse-hi': pulseHi,
@@ -160,7 +161,7 @@ export function LavaMotion({ state, motion, reducedMotion }: MotionPackProps): R
                     0 0 0 3.2 -1.45"
             result="core-mask"
           />
-          <feFlood floodColor="#fff64d" floodOpacity={0.62 + brightness * 0.3} result="core-color" />
+          <feFlood className="lava-motion__core-color" floodColor="#fff64d" floodOpacity={0.62 + brightness * 0.3} result="core-color" />
           <feComposite in="core-color" in2="core-mask" operator="in" result="core-glow" />
           {/* 몸통 밖으로 새지 않게 자른다 — 알파가 몸통을 넘지 않아 헤일로가 안 생긴다. */}
           <feComposite in="core-glow" in2="cooled" operator="in" result="core-clipped" />
